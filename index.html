@@ -1,0 +1,847 @@
+<!doctype html>
+<html lang="ru"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b1024">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Переливашки">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+<style>*,*::before,*::after{box-sizing:border-box}:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font-size:14px}img{max-width:100%}</style>
+<title>Переливашки</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@600;800&display=swap">
+<style>
+/* Layout: one-screen game in deep space — pilot line + route strip on top, tubes in the middle, controls at the bottom.
+   Deliberately single (dark) theme: it's a starfield. */
+:root{
+  --bg:#0b1024; --bg2:#151b3d; --panel:#1b2350; --panel2:#232d63; --fg:#eef2ff; --muted:#9ea8d6;
+  --glass:#6d79b8; --glass-fill:rgba(255,255,255,.06); --accent:#ffb547; --accent-fg:#2a1700; --win:#5ee6a8; --line:#323c78;
+  --hid:#3a4372; --hid2:#465088; --hidfg:#cfd6ff;
+  --display:"Fredoka","Trebuchet MS","Segoe UI",system-ui,sans-serif;
+  --body:"Nunito","Segoe UI",system-ui,sans-serif;
+  --seg:clamp(24px,6.6vw,34px); --tw:clamp(34px,10.5vw,48px);
+  color-scheme:dark;
+}
+html,body{height:100%}
+[hidden]{display:none!important}
+body{color:var(--fg);font-family:var(--body);padding-inline:16px;box-sizing:border-box;
+  display:flex;flex-direction:column;user-select:none;-webkit-tap-highlight-color:transparent;overflow:hidden;
+  background:
+    radial-gradient(1.5px 1.5px at 12% 18%,#fff8 50%,transparent 51%),
+    radial-gradient(1px 1px at 78% 9%,#fff9 50%,transparent 51%),
+    radial-gradient(1.5px 1.5px at 64% 42%,#fff6 50%,transparent 51%),
+    radial-gradient(1px 1px at 31% 67%,#fff8 50%,transparent 51%),
+    radial-gradient(1px 1px at 88% 74%,#fff7 50%,transparent 51%),
+    radial-gradient(1.5px 1.5px at 7% 88%,#fff6 50%,transparent 51%),
+    radial-gradient(1px 1px at 47% 93%,#fff5 50%,transparent 51%),
+    radial-gradient(120% 70% at 85% 0%,#2a2470 0%,transparent 60%),
+    radial-gradient(90% 60% at 0% 100%,#103a5c 0%,transparent 60%),
+    var(--bg);}
+.wrap{max-width:560px;width:100%;margin-inline:auto}
+header{display:flex;flex-wrap:wrap;gap:2px 12px;justify-content:space-between;align-items:center;padding-block:12px 2px}
+.pilot{display:flex;flex-direction:column;min-width:0}
+.pilot small{color:var(--muted);font-weight:800;font-size:.78rem;letter-spacing:.08em;text-transform:uppercase}
+h1{font-family:var(--display);font-weight:600;font-size:1.45rem;margin:0;line-height:1.15}
+h1 span{color:var(--accent)}
+.stats{display:flex;gap:12px;font-weight:800;color:var(--muted);font-size:.92rem;font-variant-numeric:tabular-nums}
+.stats span{white-space:nowrap}
+.stats b{color:var(--fg)}
+.stats .star b{color:var(--accent)}
+.starrow{display:flex;justify-content:center;gap:6px;margin:2px 0 6px}
+.starrow svg{width:38px;height:38px}
+.starrow .off path{fill:var(--line)}
+.starrow .on path{fill:var(--accent)}
+.starrow .on{animation:pop .4s ease-out backwards}
+.starrow .on:nth-child(2){animation-delay:.15s}.starrow .on:nth-child(3){animation-delay:.3s}
+@keyframes pop{0%{transform:scale(0)}70%{transform:scale(1.25)}100%{transform:scale(1)}}
+.quiz{padding:14px;border-radius:14px;background:rgba(94,230,168,.08);border:1px solid rgba(94,230,168,.3);margin-bottom:14px}
+.quiz h3{margin:0 0 6px;font-size:.78rem;letter-spacing:.08em;text-transform:uppercase;color:var(--win)}
+.quiz p{margin:0 0 10px;font-weight:800;line-height:1.35}
+.quiz .opts{display:flex;flex-direction:column;gap:8px}
+.quiz .opts button{text-align:left;background:var(--panel);font-weight:700;padding:10px 12px;line-height:1.3;border:2px solid transparent}
+.quiz .opts button.right{border-color:var(--win);background:rgba(94,230,168,.18)}
+.quiz .opts button.wrong{border-color:#ff6b6b;background:rgba(255,107,107,.15)}
+.quiz .res{margin:10px 0 0;font-weight:800}
+
+/* route strip */
+#route{display:flex;flex-direction:column;gap:6px;margin-top:10px;padding:10px 12px;border-radius:16px;background:rgba(27,35,80,.7);
+  border:1px solid var(--line);cursor:pointer;text-align:left;width:100%;box-sizing:border-box;font:inherit;color:inherit;box-shadow:none}
+.route-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-weight:800;font-size:.9rem}
+.route-top em{font-style:normal;color:var(--accent)}
+.route-top span:last-child{color:var(--muted);white-space:nowrap;font-size:.82rem}
+.track{position:relative;display:flex;justify-content:space-between;align-items:center;height:16px}
+.track::before{content:"";position:absolute;left:4px;right:4px;top:50%;height:2px;background:var(--line);transform:translateY(-50%)}
+.track .fill{position:absolute;left:4px;top:50%;height:2px;background:var(--accent);transform:translateY(-50%)}
+.dot{position:relative;width:9px;height:9px;border-radius:50%;background:var(--line);flex:none}
+.dot.on{background:var(--dc)}
+.dot.next{box-shadow:0 0 0 3px rgba(255,181,71,.35);background:var(--dc)}
+.ship{position:absolute;top:50%;width:18px;height:12px;transform:translate(-50%,-50%);transition:left .6s ease}
+
+.msg{text-align:center;min-height:1.4em;color:var(--muted);font-weight:700;margin-top:8px}
+main{flex:1;display:flex;align-items:center;justify-content:center;min-height:0}
+#board{display:flex;flex-wrap:wrap;justify-content:center;gap:24px clamp(10px,3.4vw,20px);max-width:440px;padding-top:20px}
+.tube{width:var(--tw);height:calc(var(--seg)*4 + 12px);border:3px solid var(--glass);border-top:none;
+  border-radius:0 0 calc(var(--tw)/2) calc(var(--tw)/2);background:var(--glass-fill);overflow:hidden;
+  display:flex;flex-direction:column-reverse;padding:0 3px 3px;box-sizing:border-box;cursor:pointer;
+  transition:transform .18s ease;position:relative}
+.tube::before{content:"";position:absolute;top:0;left:-6px;right:-6px;height:3px;background:var(--glass);border-radius:2px;z-index:2}
+.tube::after{content:"";position:absolute;top:8px;bottom:14px;left:5px;width:4px;border-radius:3px;background:linear-gradient(#fff5,#fff1);pointer-events:none;z-index:2}
+.tube{box-shadow:inset 0 -10px 18px rgba(110,140,255,.08)}
+.tube.sel{transform:translateY(-18px)}
+.tube.done{border-color:var(--win);box-shadow:0 0 14px rgba(94,230,168,.35)}
+.tube.hint{animation:pulse .7s ease-in-out 3}
+.tube:focus-visible{outline:3px solid var(--accent);outline-offset:4px}
+.seg{height:var(--seg);flex:none;border-radius:2px}
+.seg:first-child{border-radius:0 0 calc(var(--tw)/2 - 4px) calc(var(--tw)/2 - 4px)}
+.seg.new{animation:rise .28s ease-out}
+.seg.hid{background:
+    radial-gradient(1px 1px at 25% 30%,#fff 50%,transparent 51%),
+    radial-gradient(1px 1px at 72% 68%,#fffc 50%,transparent 51%),
+    radial-gradient(1.2px 1.2px at 60% 20%,#fff9 50%,transparent 51%),
+    radial-gradient(70% 90% at 30% 70%,#7b4fd6 0%,transparent 70%),
+    radial-gradient(70% 80% at 80% 30%,#2f7fd8 0%,transparent 70%),
+    #1a1440!important;
+  display:flex;align-items:center;justify-content:center;font:700 calc(var(--seg)*.55) var(--display);color:var(--hidfg);
+  text-shadow:0 0 6px #b99bff}
+.seg.reveal{animation:reveal .45s ease-out}
+@keyframes reveal{0%{filter:brightness(2.2) saturate(0)}100%{filter:none}}
+@keyframes rise{from{transform:scaleY(0);transform-origin:bottom}to{transform:scaleY(1)}}
+@keyframes pulse{50%{transform:translateY(-10px);box-shadow:0 0 0 4px var(--accent)}}
+
+nav{display:flex;gap:8px;justify-content:center;padding-block:12px 16px}
+button{font:800 1rem var(--body);border:none;border-radius:14px;padding:12px 14px;background:var(--panel);color:var(--fg);
+  box-shadow:0 2px 0 rgba(0,0,0,.3);cursor:pointer;min-width:0}
+button:active{transform:translateY(1px)}
+button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+button.primary{background:var(--accent);color:var(--accent-fg)}
+nav .icon{width:48px;padding-inline:0;font-size:1.25rem}
+
+/* overlays */
+.overlay{position:fixed;inset:0;background:rgba(5,8,22,.72);display:flex;align-items:center;justify-content:center;padding-inline:16px;z-index:5}
+.card{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:22px;padding:22px 20px;
+  max-width:360px;width:100%;box-sizing:border-box;max-height:calc(100% - 32px);overflow:auto}
+.card h2{font-family:var(--display);font-weight:600;font-size:1.55rem;margin:0 0 4px;text-align:center;text-wrap:balance}
+.card .sub{margin:0 0 14px;color:var(--muted);font-weight:700;text-align:center}
+.rankup{margin:0 0 14px;padding:8px 12px;border-radius:12px;background:rgba(255,181,71,.14);color:var(--accent);font-weight:800;text-align:center}
+.fact{padding:14px 14px 12px;border-radius:14px;background:rgba(11,16,36,.55);margin-bottom:16px}
+.fact h3{margin:0 0 6px;font-size:.78rem;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+.fact p{margin:0;line-height:1.45;font-size:1rem}
+.card .actions{display:flex;justify-content:center}
+.card .actions button{width:100%}
+
+/* planet arrival */
+.arrive{display:flex;flex-direction:column;align-items:center;gap:6px;margin-bottom:14px}
+.planet{width:92px;height:92px;border-radius:50%;position:relative;margin:6px 0 4px;animation:float 3s ease-in-out infinite}
+.planet.ring::after{content:"";position:absolute;left:-30%;right:-30%;top:42%;height:16%;border:3px solid #e6cf9b;border-radius:50%;transform:rotate(-14deg);opacity:.9}
+.planet.belt{background:none!important;width:120px}
+.planet.belt i{position:absolute;border-radius:40%;background:#8d7f6c}
+@keyframes float{50%{transform:translateY(-5px)}}
+.arrive .tag{font-size:.78rem;letter-spacing:.08em;text-transform:uppercase;color:var(--win);font-weight:800}
+.arrive .pname{font-family:var(--display);font-size:1.6rem;font-weight:600}
+.stats3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;width:100%;margin-top:6px}
+.stats3 div{background:rgba(11,16,36,.55);border-radius:12px;padding:8px 6px;text-align:center;min-width:0}
+.stats3 b{display:block;font-size:.95rem;line-height:1.2}
+.stats3 span{display:block;font-size:.72rem;color:var(--muted);font-weight:700;margin-top:3px}
+
+/* journal */
+#journal .card{max-width:420px}
+.jhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.jhead h2{margin:0;text-align:left}
+.jhead button{padding:8px 12px}
+.jstop{margin-top:16px}
+.jstop h3{display:flex;align-items:center;gap:8px;margin:0 0 8px;font-family:var(--display);font-weight:600;font-size:1.15rem}
+.jstop h3 i{width:14px;height:14px;border-radius:50%;flex:none}
+.jstop ol{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:8px}
+.jstop li{line-height:1.4}
+.jstop li.locked{color:var(--muted);font-style:italic}
+.jnote{color:var(--muted);font-weight:700;margin:0}
+/* portrait + id card */
+.pilot{flex-direction:row;align-items:center;gap:10px}
+.pilot .names{display:flex;flex-direction:column;min-width:0}
+#pp{position:relative;padding:0;background:none;box-shadow:none;border-radius:50%;width:46px;height:51px;flex:none}
+#pp svg{display:block}
+#pp .plus{position:absolute;right:-4px;bottom:2px;width:18px;height:18px;border-radius:50%;background:var(--accent);color:var(--accent-fg);font:800 14px/18px var(--body);text-align:center}
+.promo{display:flex;flex-direction:column;align-items:center;gap:4px;margin:0 0 14px;padding:12px;border-radius:14px;background:rgba(255,181,71,.12);border:1px solid rgba(255,181,71,.35)}
+.promo svg{animation:float 3s ease-in-out infinite}
+.promo b{color:var(--accent);font-size:1.05rem;text-align:center}
+.promo span{color:var(--muted);font-weight:700;font-size:.85rem;text-align:center}
+.patchline{color:var(--win);font-weight:800;font-size:.85rem}
+#idcard .card{max-width:380px;background:linear-gradient(160deg,#26306e,#151b3d 70%);border:2px solid #4a56a0}
+.idtop{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);font-weight:800;border-bottom:1px dashed var(--line);padding-bottom:8px;margin-bottom:12px}
+.idtop .num{color:var(--muted);letter-spacing:.04em;font-variant-numeric:tabular-nums;white-space:nowrap}
+.idmain{display:flex;gap:14px;align-items:center}
+.idpic{flex:none;border-radius:14px;background:rgba(11,16,36,.6);padding:6px}
+.idmain dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:6px 10px;align-items:baseline;min-width:0}
+.idmain dt{color:var(--muted);font-size:.75rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em}
+.idmain dd{margin:0;font-weight:800;font-family:var(--display);font-size:1.1rem}
+.idplaces{margin-top:12px;line-height:1.9;font-size:.9rem}
+.chip{display:inline-flex;align-items:center;gap:5px;padding:1px 9px;margin-right:4px;border-radius:999px;background:rgba(11,16,36,.6);font-weight:700;white-space:nowrap}
+.chip i{width:9px;height:9px;border-radius:50%}
+.muted{color:var(--muted)}
+.idbtns{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap}
+.idbtns button{flex:1}
+#cview{position:relative;width:220px;height:220px;margin:6px auto 12px;border-radius:50%;overflow:hidden;background:#000;touch-action:none;cursor:grab;border:4px solid var(--accent)}
+#cimg{position:absolute;max-width:none;pointer-events:none;user-select:none}
+#crop label{display:flex;align-items:center;gap:10px;font-weight:800;color:var(--muted);margin-bottom:14px}
+#crop input[type=range]{flex:1;accent-color:var(--accent)}
+.linkbtn{display:block;margin:14px auto 0;background:none;box-shadow:none;color:var(--muted);font-size:.85rem;text-decoration:underline;padding:6px}
+.resetbox{margin-top:12px;padding:14px;border-radius:14px;border:1px solid rgba(255,107,107,.5);background:rgba(255,107,107,.1)}
+.resetbox p{margin:6px 0 10px;color:var(--muted);font-weight:700;line-height:1.4}
+.resetbox label{display:flex;gap:8px;align-items:center;font-weight:700}
+.resetbox .idbtns{margin-top:12px}
+button.danger{background:#e04a4a;color:#fff}
+@media (prefers-reduced-motion:reduce){.tube,.seg.new,.tube.hint,.planet,.ship{transition:none;animation:none}}
+</style>
+</head><body>
+
+
+<div class="wrap">
+  <header>
+    <div class="pilot"><button id="pp" aria-label="Удостоверение космонавта"></button><div class="names"><small id="rank">Кадет</small><h1>Командир <span>Платон</span></h1></div></div>
+    <div class="stats"><span>Уровень <b id="lvl">1</b></span><span>Ходы <b id="moves">0</b></span><span class="star">★ <b id="stars">0</b></span></div>
+  </header>
+  <button id="route" aria-label="Открыть бортовой журнал">
+    <div class="route-top"><span id="routeText">Курс: Луна</span><span id="routeLeft"></span></div>
+    <div class="track" id="track"></div>
+  </button>
+  <div class="msg" id="msg">Нажми на колбу, потом на ту, куда перелить</div>
+</div>
+<main><div id="board" role="group" aria-label="Колбы"></div></main>
+<nav>
+  <button id="undo" class="icon" aria-label="Отменить ход">↶</button>
+  <button id="restart" class="icon" aria-label="Начать уровень заново">⟲</button>
+  <button id="log">Журнал</button>
+  <button id="hint" class="primary">Подсказка</button>
+</nav>
+
+<div id="win" class="overlay" hidden>
+  <div class="card" id="winCard"></div>
+</div>
+<div id="idcard" class="overlay" hidden>
+  <div class="card">
+    <div id="idbody"></div>
+    <div class="idbtns"><button id="photoBtn" class="primary">Добавить фото</button><button id="delPhoto" hidden>Убрать</button><button id="idclose">Закрыть</button></div>
+    <button id="resetAsk" class="linkbtn">Сбросить прогресс…</button>
+    <div id="resetBox" class="resetbox" hidden>
+      <b>Точно начать всё сначала?</b>
+      <p>Уровни, звёзды, звания, нашивки и бортовой журнал обнулятся. Вернуть их будет нельзя.</p>
+      <label><input type="checkbox" id="resetPhoto"> Удалить и фото</label>
+      <div class="idbtns"><button id="resetNo">Отмена</button><button id="resetYes" class="danger">Да, сбросить</button></div>
+    </div>
+    <input type="file" id="photoFile" accept="image/*" hidden>
+  </div>
+</div>
+<div id="crop" class="overlay" hidden>
+  <div class="card">
+    <h2>Фото для шлема</h2>
+    <p class="sub">Двигай фото пальцем, чтобы лицо было в круге</p>
+    <div id="cview"><img id="cimg" alt="Фото пилота"></div>
+    <label for="zoom">Масштаб <input type="range" id="zoom" min="1" max="3" step="0.01" value="1"></label>
+    <p class="sub" style="font-size:.8rem;margin-bottom:12px">Фото хранится только на этом телефоне</p>
+    <div class="idbtns"><button id="cancelCrop">Отмена</button><button id="saveCrop" class="primary">Готово</button></div>
+  </div>
+</div>
+<div id="journal" class="overlay" hidden>
+  <div class="card">
+    <div class="jhead"><h2>Бортовой журнал</h2><button id="jclose">Закрыть</button></div>
+    <div id="jbody"></div>
+  </div>
+</div>
+
+<script>
+const CAP = 4;
+const PALETTE = {a:"#ff4d4d",b:"#2f80ff",c:"#ffd23f",d:"#2ec27e",e:"#a259ff",f:"#ff8c1a",g:"#29d3e6",h:"#ff6fb5",i:"#8a5a2b",j:"#9cdb3a",k:"#5c6b8a",l:"#ffffff"};
+const KEYS = Object.keys(PALETTE);
+
+function rng(seed){return function(){seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+
+const isDone = t => t.every(x => x.length===0 || (x.length===CAP && x.every(c=>c===x[0])));
+const keyOf = t => t.map(x=>x.join("")).sort().join("|");
+function topRun(x){let n=1;while(n<x.length&&x[x.length-1-n]===x[x.length-1])n++;return n}
+function canPour(t,i,j){
+  if(i===j)return false;const a=t[i],b=t[j];
+  if(!a.length||b.length>=CAP)return false;
+  return !b.length||b[b.length-1]===a[a.length-1];
+}
+function pour(t,i,j){
+  const n=Math.min(topRun(t[i]),CAP-t[j].length);
+  const nt=t.map(x=>x.slice());
+  for(let k=0;k<n;k++)nt[j].push(nt[i].pop());
+  return [nt,n];
+}
+
+// Depth-first search with memo; returns list of moves or null (no solution / too hard)
+function solve(start,limit=250000){
+  const seen=new Set([keyOf(start)]);const path=[];let nodes=0;
+  function dfs(t){
+    if(isDone(t))return true;
+    if(++nodes>limit)return null;
+    const moves=[];
+    for(let i=0;i<t.length;i++){
+      const a=t[i];if(!a.length)continue;
+      const uniform=topRun(a)===a.length;
+      if(uniform&&a.length===CAP)continue;
+      for(let j=0;j<t.length;j++){
+        if(!canPour(t,i,j))continue;
+        if(uniform&&!t[j].length)continue;
+        moves.push([i,j,t[j].length?0:1]);
+      }
+    }
+    moves.sort((x,y)=>x[2]-y[2]);
+    for(const [i,j] of moves){
+      const [nt]=pour(t,i,j);const k=keyOf(nt);
+      if(seen.has(k))continue;seen.add(k);
+      path.push([i,j]);
+      const r=dfs(nt);
+      if(r)return true;if(r===null)return null;
+      path.pop();
+    }
+    return false;
+  }
+  return dfs(start)?path.slice():null;
+}
+
+function levelSpec(n){
+  const colors=Math.min(3+Math.floor((n-1)/2),12);
+  const empties=colors>=9?2:2;
+  return {colors,empties};
+}
+function generate(n){
+  const {colors,empties}=levelSpec(n);
+  for(let attempt=0;attempt<60;attempt++){
+    const r=rng(n*7919+attempt*104729);
+    const units=[];
+    for(let c=0;c<colors;c++)for(let k=0;k<CAP;k++)units.push(KEYS[c]);
+    for(let i=units.length-1;i>0;i--){const j=Math.floor(r()*(i+1));[units[i],units[j]]=[units[j],units[i]]}
+    const t=[];
+    for(let c=0;c<colors;c++)t.push(units.slice(c*CAP,c*CAP+CAP));
+    for(let e=0;e<empties;e++)t.push([]);
+    // avoid tubes that start already sorted or with 3 of a kind stacked
+    if(t.some(x=>x.length===CAP&&topRun(x)>=3))continue;
+    const sol=solve(t,150000);
+    if(sol&&sol.length>=colors)return t;
+  }
+  // fallback: give an extra empty tube
+  const r=rng(n);const units=[];
+  for(let c=0;c<colors;c++)for(let k=0;k<CAP;k++)units.push(KEYS[c]);
+  units.sort(()=>r()-.5);
+  const t=[];for(let c=0;c<colors;c++)t.push(units.slice(c*CAP,c*CAP+CAP));
+  t.push([],[],[]);return t;
+}
+
+// ===== Space journey: 5 levels per leg, arrival at the stop on every 5th level =====
+const STOPS = [
+ {name:"Луна", of:"о Луне", col:"#c9c9d1", grad:"radial-gradient(circle at 35% 35%,#f1f1f4,#a7a7b3 60%,#6d6d7a)",
+  stats:[["384 000 км","от Земли"],["3474 км","диаметр"],["в 6 раз","легче вес"]],
+  facts:[
+   "Луна всегда повёрнута к Земле одной стороной: она поворачивается вокруг себя ровно за то же время, за которое облетает Землю.",
+   "На Луне нет ветра и дождя, поэтому следы астронавтов могут пролежать там миллионы лет.",
+   "Луна каждый год отодвигается от Земли примерно на 3,8 сантиметра — почти на длину спичечного коробка.",
+   "На Луне ты весил бы в 6 раз меньше и прыгал бы примерно в 6 раз выше, чем дома.",
+   "Первым на Луну ступил Нил Армстронг в 1969 году. Всего там побывали 12 человек."]},
+ {name:"Марс", of:"о Марсе", col:"#e0643b", grad:"radial-gradient(circle at 35% 35%,#ffab7a,#d4542c 55%,#7a2412)",
+  stats:[["6779 км","диаметр"],["24 ч 37 мин","сутки"],["687 дней","год"]],
+  facts:[
+   "Марс красный из-за ржавчины: в его пыли много оксида железа.",
+   "На Марсе стоит гора Олимп — самый высокий вулкан Солнечной системы. Она почти в 2,5 раза выше Эвереста.",
+   "Сутки на Марсе длятся 24 часа 37 минут — почти как на Земле.",
+   "У Марса две маленькие луны: Фобос и Деймос. В переводе с греческого — «Страх» и «Ужас».",
+   "Закаты на Марсе голубые, а днём небо там желтовато-розовое."]},
+ {name:"Пояс астероидов", of:"о поясе астероидов", col:"#a08c73", belt:true,
+  stats:[["между","Марсом и Юпитером"],["~940 км","Церера"],["> 1 млн","глыб больше 1 км"]],
+  facts:[
+   "Между Марсом и Юпитером летают миллионы каменных глыб — это пояс астероидов.",
+   "Самый крупный житель пояса — карликовая планета Церера, около 940 километров в поперечнике.",
+   "В кино корабли уворачиваются от астероидов, но на самом деле между ними в среднем сотни тысяч километров.",
+   "Если слепить все астероиды пояса в один шар, он получится намного меньше нашей Луны.",
+   "Космический аппарат «Рассвет» побывал у двух жителей пояса — астероида Веста и Цереры."]},
+ {name:"Юпитер", of:"о Юпитере", col:"#d9a46c", grad:"repeating-linear-gradient(170deg,#e9c99a 0 10px,#c88c55 10px 16px,#efdcbc 16px 24px)",
+  stats:[["1300","Земель внутри"],["~10 часов","сутки"],["> 90","спутников"]],
+  facts:[
+   "Юпитер — самая большая планета: внутри него поместилось бы больше 1300 Земель.",
+   "Большое красное пятно на Юпитере — это ураган шире всей Земли. Его наблюдают уже почти 200 лет.",
+   "Сутки на Юпитере короче всех в Солнечной системе — около 10 часов.",
+   "Спутник Юпитера Ганимед — самый большой спутник в Солнечной системе. Он даже больше планеты Меркурий.",
+   "У Юпитера нет твёрдой поверхности: это газовый гигант, и встать на него нельзя."]},
+ {name:"Сатурн", of:"о Сатурне", col:"#e3c98d", grad:"radial-gradient(circle at 35% 35%,#fbecc4,#d9b874 60%,#8f6f35)", ring:true,
+  stats:[["~120 000 км","диаметр"],["29,5 лет","год"],["> 250","спутников"]],
+  facts:[
+   "Кольца Сатурна состоят из льда и камней — от песчинок до глыб размером с дом.",
+   "Сатурн легче воды: если бы нашлась ванна нужного размера, он бы в ней плавал.",
+   "Кольца Сатурна в ширину — сотни тысяч километров, а в толщину обычно всего около десятка метров.",
+   "На спутнике Сатурна Титане есть реки, озёра и дожди, только не из воды, а из жидкого метана.",
+   "У Сатурна больше всего известных спутников — больше 250."]},
+ {name:"Уран", of:"об Уране", col:"#8fd8de", grad:"radial-gradient(circle at 35% 35%,#d4f6f8,#86d0d8 60%,#3f8a96)",
+  stats:[["98°","наклон оси"],["84 года","год"],["−224 °C","мороз"]],
+  facts:[
+   "Уран вращается, лёжа на боку: его ось наклонена почти на 98 градусов.",
+   "Из-за этого на полюсе Урана Солнце светит 42 года подряд, а потом 42 года длится ночь.",
+   "Уран голубовато-зелёный из-за газа метана в атмосфере.",
+   "Уран — первая планета, открытая с помощью телескопа. Это сделал Уильям Гершель в 1781 году.",
+   "На Уране бывает самый сильный холод среди всех планет — около −224 °C."]},
+ {name:"Нептун", of:"о Нептуне", col:"#4a73e8", grad:"radial-gradient(circle at 35% 35%,#9fbaff,#3b62d9 60%,#1a2d7a)",
+  stats:[["2100 км/ч","ветер"],["165 лет","год"],["4,5 млрд км","от Солнца"]],
+  facts:[
+   "На Нептуне дуют самые сильные ветры в Солнечной системе — больше 2000 км/ч.",
+   "Нептун сначала нашли с помощью математики, а уже потом увидели в телескоп, в 1846 году.",
+   "Год на Нептуне длится 165 земных лет. Первый полный круг после открытия он закончил только в 2011 году.",
+   "Спутник Нептуна Тритон летает вокруг планеты в обратную сторону, а на его поверхности бьют ледяные гейзеры.",
+   "Рядом с Нептуном пролетел только один аппарат — «Вояджер-2» в 1989 году."]},
+ {name:"Плутон", of:"о Плутоне", col:"#d9b9a0", grad:"radial-gradient(circle at 35% 35%,#f3e1d0,#c9a083 60%,#6e5040)",
+  stats:[["2377 км","диаметр"],["248 лет","год"],["1930","открыт"]],
+  facts:[
+   "Имя Плутону придумала 11-летняя школьница из Англии — Венеция Берни.",
+   "На Плутоне есть огромная светлая ледяная равнина в форме сердца.",
+   "Плутон меньше нашей Луны.",
+   "В 2006 году учёные решили называть Плутон не планетой, а карликовой планетой.",
+   "Аппарат «Новые горизонты» летел к Плутону девять с половиной лет и добрался в 2015 году."]},
+ {name:"Пояс Койпера", of:"о поясе Койпера", col:"#9fc1e0", grad:"radial-gradient(circle at 35% 35%,#eaf4ff,#9cbfe0 60%,#4c6b8c)",
+  stats:[["4,5–7,5","млрд км от Солнца"],["Аррокот","«снеговик»"],["5+ часов","идёт свет Солнца"]],
+  facts:[
+   "За Нептуном лежит пояс Койпера — огромное кольцо из ледяных тел. Плутон тоже живёт там.",
+   "Самый далёкий объект, у которого побывал космический аппарат, — Аррокот. Он похож на ледяного снеговика.",
+   "Многие кометы прилетают к Солнцу из пояса Койпера.",
+   "Свету от Солнца нужно больше пяти часов, чтобы долететь до Плутона. До Земли — всего около 8 минут.",
+   "Далеко за Нептуном летает карликовая планета Эрида. Она почти как Плутон по размеру, но тяжелее."]},
+ {name:"Край Солнечной системы", of:"о краю Солнечной системы", col:"#c7a6ff", grad:"radial-gradient(circle at 50% 50%,#fff 0 6%,#c7a6ff 18%,#4b2f9a 55%,#140d3a)",
+  stats:[["1977","старт «Вояджера-1»"],["2012","вышел к звёздам"],["~сутки","летит его сигнал"]],
+  facts:[
+   "«Вояджер-1» летит уже почти 50 лет и улетел от Земли дальше всех рукотворных предметов.",
+   "В 2012 году «Вояджер-1» вышел за границу, где кончается ветер Солнца, — в межзвёздное пространство.",
+   "На «Вояджерах» есть золотые пластинки с приветствиями на 55 языках, музыкой и звуками Земли — для инопланетян.",
+   "Учёные считают, что далеко-далеко за Плутоном Солнечную систему окружает облако Оорта — гигантская сфера из ледяных глыб.",
+   "Свет от Солнца долетает до Земли примерно за 8 минут 20 секунд. Мы всегда видим Солнце чуть-чуть «в прошлом»."]}
+];
+const DEEP = {name:"Межзвёздный полёт", of:"о космосе", col:"#ffb547"};
+const GENERAL = [
+ "Ближайшая к нам звезда после Солнца — Проксима Центавра. Её свет летит к нам больше 4 лет.",
+ "В нашей галактике Млечный Путь сотни миллиардов звёзд.",
+ "Солнце весит больше, чем все планеты, луны и астероиды Солнечной системы вместе — в сотни раз.",
+ "Чайная ложка вещества нейтронной звезды весила бы миллиарды тонн.",
+ "В космосе стоит полная тишина: звуку не через что лететь.",
+ "МКС облетает Землю примерно за полтора часа, поэтому космонавты видят около 16 рассветов в сутки.",
+ "Юрий Гагарин первым полетел в космос 12 апреля 1961 года. Полёт длился 108 минут.",
+ "Собаки Белка и Стрелка в 1960 году слетали в космос и вернулись живыми и здоровыми.",
+ "Венера вращается в обратную сторону, а сутки там длиннее, чем год.",
+ "На Меркурии днём жарче +400 °C, а ночью холоднее −170 °C.",
+ "Галактика Андромеда летит к нам навстречу и встретится с Млечным Путём через 4–5 миллиардов лет.",
+ "В центре нашей галактики находится чёрная дыра, тяжелее Солнца в 4 миллиона раз.",
+ "В космосе космонавты становятся выше на несколько сантиметров: позвоночник там распрямляется.",
+ "Зеркало телескопа «Джеймс Уэбб» шириной 6,5 метра собрано из 18 шестиугольников, покрытых золотом.",
+ "Звёзды мерцают из-за воздуха Земли. Для космонавтов на орбите они светят ровно."
+];
+const RANKS = [[1,"Кадет"],[6,"Пилот"],[16,"Штурман"],[26,"Капитан"],[36,"Командор"],[46,"Адмирал флота"]];
+const rankFor = n => RANKS.filter(r=>n>=r[0]).pop()[1];
+
+// Level n: leg L = floor((n-1)/5); fact for level n
+function legOf(n){return Math.floor((n-1)/5)}
+function factFor(n){
+  const L=legOf(n);
+  if(L<STOPS.length)return {stop:STOPS[L],text:STOPS[L].facts[(n-1)%5]};
+  return {stop:DEEP,text:GENERAL[(n-1-STOPS.length*5)%GENERAL.length]};
+}
+const load=(k,d)=>{try{const v=JSON.parse(localStorage.getItem(k));return v??d}catch(e){return d}};
+const save=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
+const STARS=load("ws_stars",{}), BONUS=load("ws_bonus",{});let ASKED=load("ws_asked",[]);
+const totalStars=()=>Object.values(STARS).reduce((a,b)=>a+b,0)+Object.keys(BONUS).length;
+// [question, options, correct index, level whose fact it checks]
+const QUIZ=[
+ ["Почему мы всегда видим одну и ту же сторону Луны?",["Луна совсем не вращается","Она поворачивается вокруг себя за то же время, что облетает Землю","Вторая сторона всегда в тени"],1,1],
+ ["Сколько могут пролежать следы астронавтов на Луне?",["Пару лет","Около ста лет","Миллионы лет"],2,2],
+ ["Сколько человек побывало на Луне?",["2","12","50"],1,5],
+ ["Почему Марс красный?",["Из-за ржавчины в пыли","Он раскалённый","Его освещает красная звезда"],0,6],
+ ["Как называется самый высокий вулкан Солнечной системы?",["Эверест","Олимп","Везувий"],1,7],
+ ["Как переводятся имена лун Марса — Фобос и Деймос?",["«Огонь» и «Лёд»","«Страх» и «Ужас»","«День» и «Ночь»"],1,9],
+ ["Какого цвета закаты на Марсе?",["Красные","Зелёные","Голубые"],2,10],
+ ["Кто самый крупный житель пояса астероидов?",["Церера","Веста","Фобос"],0,12],
+ ["Сколько Земель поместилось бы внутри Юпитера?",["Около 10","Больше 1300","Миллион"],1,16],
+ ["Что такое Большое красное пятно на Юпитере?",["Вулкан","Озеро","Огромный ураган"],2,17],
+ ["Какой спутник самый большой в Солнечной системе?",["Луна","Титан","Ганимед"],2,19],
+ ["Что случилось бы с Сатурном в огромной ванне с водой?",["Утонул бы","Плавал бы","Растаял бы"],1,22],
+ ["Из чего идут дожди на Титане?",["Из воды","Из жидкого метана","Из песка"],1,24],
+ ["Как вращается Уран?",["Лёжа на боку","Быстрее всех планет","Совсем не вращается"],0,26],
+ ["Кто открыл Уран?",["Галилей","Уильям Гершель","Юрий Гагарин"],1,29],
+ ["Какой силы ветры на Нептуне?",["До 20 км/ч","До 200 км/ч","Больше 2000 км/ч"],2,31],
+ ["Как сначала нашли Нептун?",["Случайно в бинокль","С помощью математики","Его сфотографировал «Вояджер»"],1,32],
+ ["Какой аппарат пролетел рядом с Нептуном?",["«Вояджер-2»","«Аполлон-11»","«Восток-1»"],0,35],
+ ["Кто придумал имя Плутону?",["Учёный из NASA","11-летняя школьница","Король Англии"],1,36],
+ ["Какая фигура видна на Плутоне?",["Сердце","Звезда","Квадрат"],0,37],
+ ["На что похож Аррокот?",["На снеговика","На кубик","На бублик"],0,42],
+ ["За сколько свет от Солнца долетает до Земли?",["За секунду","Примерно за 8 минут","За сутки"],1,44],
+ ["Что везут «Вояджеры» для инопланетян?",["Золотые пластинки со звуками Земли","Флаг Земли","Банку варенья"],0,48],
+ ["Почему в космосе тишина?",["Там все спят","Звуку не через что лететь","Там слишком холодно"],1,55],
+ ["Кто первым полетел в космос?",["Нил Армстронг","Юрий Гагарин","Белка и Стрелка"],1,57]
+];
+function pickQuiz(n){
+  if(n<3||n%3||n%5===0)return null;
+  const open=QUIZ.map((q,i)=>i).filter(i=>QUIZ[i][3]<n);
+  if(!open.length)return null;
+  let pool=open.filter(i=>!ASKED.includes(i));
+  if(!pool.length){ASKED=[];pool=open}
+  return pool[Math.floor(rng(n*97)()*pool.length)];
+}
+const STAR_SVG=c=>`<svg class="${c}" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l2.9 6 6.6.8-4.9 4.6 1.3 6.5L12 17.2l-5.9 3.2 1.3-6.5L2.5 9.3l6.6-.8z"/></svg>`;
+function starsFor(m,par,hints){
+  const base=m<=par?3:m<=par+Math.ceil(par*.35)?2:1;
+  return Math.max(0,base-hints);
+}
+let maxDone=0;
+try{maxDone=Math.max(0,parseInt(localStorage.getItem("ws_done"))||0)}catch(e){}
+
+const SHIP=`<svg class="ship" viewBox="0 0 18 12" aria-hidden="true"><path d="M1 6 L5 2 H12 L17 6 L12 10 H5 Z" fill="#eef2ff"/><circle cx="11" cy="6" r="1.8" fill="#4a73e8"/><path d="M1 6 L-3 4 L-3 8 Z" fill="#ffb547"/></svg>`;
+function renderRoute(){
+  const L=legOf(level),track=document.getElementById("track");
+  if(L<STOPS.length){
+    const left=5-((level-1)%5);
+    document.getElementById("routeText").innerHTML="Курс: <em>"+STOPS[L].name+"</em>";
+    document.getElementById("routeLeft").textContent=left===1?"последний уровень до прилёта":"ещё "+left+" "+plural(left,"уровень","уровня","уровней");
+  }else{
+    document.getElementById("routeText").innerHTML="<em>Межзвёздный полёт</em>";
+    document.getElementById("routeLeft").textContent="все планеты пройдены";
+  }
+  // Earth + 10 stops
+  const pts=[{col:"#4aa3ff"}].concat(STOPS);
+  const done=Math.min(L,STOPS.length);
+  const frac=Math.min(1,(L+((level-1)%5)/5)/STOPS.length);
+  track.innerHTML=`<div class="fill" style="width:calc((100% - 8px)*${frac})"></div>`+
+    pts.map((p,i)=>`<i class="dot ${i<=done?"on":""} ${i===done+1?"next":""}" style="--dc:${p.col}"></i>`).join("")+
+    SHIP.replace('class="ship"',`class="ship" style="left:calc(4px + (100% - 8px)*${frac})"`);
+  document.getElementById("rank").textContent=rankFor(level);
+}
+
+function planetHTML(s){
+  if(s.belt){
+    let r=rng(7),h="";for(let k=0;k<22;k++){const w=4+r()*9;h+=`<i style="left:${r()*110}px;top:${30+r()*32+Math.sin(k)*8}px;width:${w}px;height:${w*.8}px;opacity:${.6+r()*.4}"></i>`}
+    return `<div class="planet belt">${h}</div>`;
+  }
+  return `<div class="planet ${s.ring?"ring":""}" style="background:${s.grad}"></div>`;
+}
+
+function showWin(){
+  const n=level, f=factFor(n), card=document.getElementById("winCard");
+  const arrived = n%5===0 && legOf(n)<STOPS.length;
+  const rankUp = rankFor(n+1)!==rankFor(n);
+  if(n>maxDone){maxDone=n;try{localStorage.setItem("ws_done",String(n))}catch(e){}}
+  let h="";
+  if(arrived){
+    const s=STOPS[legOf(n)];
+    h+=`<div class="arrive"><span class="tag">Прибытие</span>${planetHTML(s)}<div class="pname">${s.name}</div>
+      <div class="stats3">${s.stats.map(x=>`<div><b>${x[0]}</b><span>${x[1]}</span></div>`).join("")}</div><span class="patchline">+ нашивка «${s.name}» на скафандр</span></div>`;
+    h+=`<h2>Командир Платон, мы на месте!</h2>`;
+  }else{
+    h+=`<h2>Миссия выполнена, командир Платон!</h2>`;
+  }
+  const got=starsFor(moves,par,hintsUsed);
+  if(got>(STARS[n]||0)){STARS[n]=got;save("ws_stars",STARS)}
+  h+=`<div class="starrow" aria-label="Звёзд: ${got} из 3">${[0,1,2].map(k=>STAR_SVG(k<got?"on":"off")).join("")}</div>`;
+  h+=`<p class="sub">Уровень ${n} за ${moves} ${plural(moves,"ход","хода","ходов")} · цель: ${par}${hintsUsed?` · подсказок: ${hintsUsed}`:""}</p>`;
+  if(rankUp)h+=`<div class="promo">${portraitSVG(rankIndex(n+1),visitedStops(),110)}<b>Платон повышен до звания «${rankFor(n+1)}»!</b><span>Новая форма уже на скафандре</span></div>`;
+  const qi=pickQuiz(n);
+  if(qi!==null){
+    const q=QUIZ[qi];
+    h+=`<div class="quiz" id="quiz"><h3>Вопрос на бонусную звезду</h3><p>${q[0]}</p><div class="opts">${q[1].map((o,k)=>`<button data-k="${k}">${o}</button>`).join("")}</div></div>`;
+  }
+  h+=`<div class="fact"><h3>Факт ${f.stop.of}</h3><p>${f.text}</p></div>`;
+  const nextL=legOf(n+1);
+  const nextLabel = arrived && nextL<STOPS.length ? "Полетели: "+STOPS[nextL].name : "Следующий уровень";
+  h+=`<div class="actions"><button id="next" class="primary">${nextLabel}</button></div>`;
+  card.innerHTML=h;
+  document.getElementById("next").onclick=()=>startLevel(level+1);
+  if(qi!==null){
+    const q=QUIZ[qi],box=document.getElementById("quiz");
+    box.querySelectorAll(".opts button").forEach(b=>b.onclick=()=>{
+      const k=+b.dataset.k,ok=k===q[2];
+      box.querySelectorAll(".opts button").forEach(x=>{x.disabled=true;if(+x.dataset.k===q[2])x.classList.add("right")});
+      if(!ok)b.classList.add("wrong");
+      if(!ASKED.includes(qi)){ASKED.push(qi);save("ws_asked",ASKED)}
+      let r;
+      if(ok&&!BONUS[n]){BONUS[n]=1;save("ws_bonus",BONUS);r="Верно! +1 бонусная звезда"}
+      else if(ok)r="Верно! Звезду за этот вопрос ты уже получил";
+      else r="Почти! Правильный ответ подсвечен. Он есть в бортовом журнале";
+      box.insertAdjacentHTML("beforeend",`<p class="res">${r}</p>`);
+      renderStars();
+    });
+  }
+  renderStars();
+  document.getElementById("win").hidden=false;
+}
+
+function openJournal(){
+  let h="";
+  const shown=Math.max(maxDone,0);
+  if(!shown)h+=`<p class="jnote">Пока пусто. Пройди первый уровень — и здесь появится первый факт.</p>`;
+  const legsSeen=Math.min(legOf(Math.max(shown,1)),STOPS.length-1);
+  for(let L=0;L<=legsSeen;L++){
+    const s=STOPS[L];
+    h+=`<div class="jstop"><h3><i style="background:${s.col}"></i>${s.name}</h3><ol>`+
+      s.facts.map((t,k)=>{const lv=L*5+k+1;return lv<=shown?`<li>${t}</li>`:`<li class="locked">Откроется на уровне ${lv}</li>`}).join("")+`</ol></div>`;
+  }
+  if(shown>STOPS.length*5){
+    const cnt=Math.min(shown-STOPS.length*5,GENERAL.length);
+    h+=`<div class="jstop"><h3><i style="background:${DEEP.col}"></i>${DEEP.name}</h3><ol>`+GENERAL.slice(0,cnt).map(t=>`<li>${t}</li>`).join("")+`</ol></div>`;
+  }
+  document.getElementById("jbody").innerHTML=h;
+  document.getElementById("journal").hidden=false;
+}
+document.getElementById("route").onclick=openJournal;
+document.getElementById("log").onclick=openJournal;
+document.getElementById("jclose").onclick=()=>{document.getElementById("journal").hidden=true};
+document.getElementById("journal").addEventListener("click",e=>{if(e.target.id==="journal")e.target.hidden=true});
+
+// ===== Portrait in a spacesuit: photo in the helmet, uniform by rank, mission patches by planets =====
+let PHOTO=null;try{PHOTO=localStorage.getItem("ws_photo")}catch(e){}
+const rankIndex=n=>RANKS.filter(r=>n>=r[0]).length-1;
+const visitedStops=()=>STOPS.slice(0,Math.min(Math.floor(maxDone/5),STOPS.length));
+let uid=0;
+function star(cx,cy,r,fill){
+  let d="";for(let k=0;k<10;k++){const a=-Math.PI/2+k*Math.PI/5,rr=k%2?r*.45:r;d+=(k?"L":"M")+(cx+rr*Math.cos(a)).toFixed(1)+" "+(cy+rr*Math.sin(a)).toFixed(1)}
+  return `<path d="${d}Z" fill="${fill}"/>`;
+}
+function pogon(x,flip,ri){
+  // shoulder board (pogon) on one shoulder
+  const gold=ri>=5, base=gold?"#d9a520":"#2b3f8f", edge=gold?"#ffe28a":"#8fb0ff";
+  let g=`<g transform="translate(${x} 157) rotate(${flip?14:-14})"><rect x="-21" y="-7" width="42" height="14" rx="5" fill="${base}" stroke="${edge}" stroke-width="1.5"/>`;
+  const stripes=Math.min(ri,4);
+  if(!gold)for(let k=0;k<stripes;k++){const sx=-14+k*(28/Math.max(stripes-1,1));g+=`<rect x="${(stripes===1?0:sx)-1.5}" y="-6" width="3" height="12" fill="#ffd25e"/>`}
+  if(ri===3)g+=star(flip?-12:12,0,4.5,"#fff");
+  if(ri===4){g+=star(-8,0,4,"#fff")+star(8,0,4,"#fff")}
+  if(gold)g+=star(0,0,6.5,"#fff7d6");
+  return g+`<circle cx="${flip?-17:17}" cy="0" r="2" fill="${edge}"/></g>`;
+}
+function portraitSVG(ri,stops,size){
+  const id="v"+(++uid);
+  const ring=["#c8cfe0","#c8cfe0","#a9c4ff","#9fe0ff","#c9b3ff","#ffcf4d"][ri];
+  const suit=ri>=5?"#f3efe4":"#eef1f8";
+  let s=`<svg viewBox="0 0 200 220" width="${size}" height="${size*1.1}" aria-hidden="true">
+  <defs><clipPath id="${id}"><circle cx="100" cy="82" r="50"/></clipPath>
+  <radialGradient id="${id}g" cx="35%" cy="30%" r="80%"><stop offset="0" stop-color="#3a4a8a"/><stop offset="1" stop-color="#0b1024"/></radialGradient></defs>
+  <path d="M18 220 Q18 160 60 150 L140 150 Q182 160 182 220 Z" fill="${suit}" stroke="#9aa6c4" stroke-width="2"/>
+  <path d="M100 152 L100 220" stroke="#c7cee0" stroke-width="2"/>
+  <rect x="84" y="134" width="32" height="20" rx="6" fill="#aab4cc"/>`;
+  if(ri>=1)s+=pogon(48,false,ri)+pogon(152,true,ri);
+  if(ri>=5)s+=`<path d="M152 165 Q132 196 108 186 M152 165 Q138 205 112 198" fill="none" stroke="#e8b830" stroke-width="3" stroke-linecap="round"/>`;
+  // mission patches on the chest, 5 per row
+  stops.forEach((st,k)=>{
+    const cx=48+(k%5)*26, cy=184+Math.floor(k/5)*22;
+    s+=`<circle cx="${cx}" cy="${cy}" r="9" fill="${st.col}" stroke="#1b2350" stroke-width="2.5"/><circle cx="${cx}" cy="${cy}" r="9" fill="none" stroke="#ffffff88" stroke-width="1"/>`;
+  });
+  // helmet
+  s+=`<circle cx="100" cy="82" r="62" fill="${suit}" stroke="#9aa6c4" stroke-width="2"/>
+  <circle cx="100" cy="82" r="54" fill="${ring}"/>`;
+  if(PHOTO)s+=`<image href="${PHOTO}" x="50" y="32" width="100" height="100" clip-path="url(#${id})" preserveAspectRatio="xMidYMid slice"/>`;
+  else s+=`<circle cx="100" cy="82" r="50" fill="url(#${id}g)"/>${star(118,64,5,"#fff8")}<text x="100" y="95" text-anchor="middle" font-family="Fredoka,sans-serif" font-size="34" font-weight="700" fill="#9ea8d6">П</text>`;
+  s+=`<path d="M64 52 A50 50 0 0 1 96 34" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="5" stroke-linecap="round"/>`;
+  if(ri>=5)s+=star(100,26,7,"#fff3c4");
+  return s+`</svg>`;
+}
+function renderPortrait(){
+  const el=document.getElementById("pp");
+  el.innerHTML=portraitSVG(rankIndex(level),visitedStops(),46)+(PHOTO?"":`<span class="plus">+</span>`);
+}
+
+// ----- ID card -----
+function openID(){
+  const n=level,ri=rankIndex(n),vis=visitedStops();
+  const num="ПЛ-"+String(2026).slice(2)+"-"+String(maxDone).padStart(3,"0");
+  document.getElementById("idbody").innerHTML=`
+    <div class="idtop"><span>Удостоверение космонавта</span><span class="num">№ ${num}</span></div>
+    <div class="idmain">
+      <div class="idpic">${portraitSVG(ri,vis,120)}</div>
+      <dl>
+        <dt>Имя</dt><dd>Платон</dd>
+        <dt>Звание</dt><dd>${RANKS[ri][1]}</dd>
+        <dt>Звёзды</dt><dd>★ ${totalStars()}</dd>
+        <dt>Уровней</dt><dd>${maxDone}</dd>
+      </dl>
+    </div>
+    <div class="idplaces"><b>Посещено:</b> ${vis.length?vis.map(s=>`<span class="chip"><i style="background:${s.col}"></i>${s.name}</span>`).join(""):"<span class='muted'>пока только Земля</span>"}</div>`;
+  document.getElementById("photoBtn").textContent=PHOTO?"Сменить фото":"Добавить фото";
+  document.getElementById("delPhoto").hidden=!PHOTO;
+  document.getElementById("idcard").hidden=false;
+}
+document.getElementById("pp").onclick=()=>{document.getElementById("resetBox").hidden=true;document.getElementById("resetAsk").hidden=false;document.getElementById("resetPhoto").checked=false;openID()};
+document.getElementById("resetAsk").onclick=()=>{document.getElementById("resetBox").hidden=false;document.getElementById("resetAsk").hidden=true};
+document.getElementById("resetNo").onclick=()=>{document.getElementById("resetBox").hidden=true;document.getElementById("resetAsk").hidden=false};
+document.getElementById("resetYes").onclick=()=>{
+  const keepPhoto=!document.getElementById("resetPhoto").checked;
+  ["ws_level","ws_done","ws_stars","ws_bonus","ws_asked"].forEach(k=>{try{localStorage.removeItem(k)}catch(e){}});
+  if(!keepPhoto){PHOTO=null;try{localStorage.removeItem("ws_photo")}catch(e){}}
+  for(const k in STARS)delete STARS[k];for(const k in BONUS)delete BONUS[k];ASKED=[];maxDone=0;
+  document.getElementById("idcard").hidden=true;
+  startLevel(1);msg.textContent="Прогресс сброшен. Новый полёт начинается!";
+};
+document.getElementById("idclose").onclick=()=>{document.getElementById("idcard").hidden=true};
+document.getElementById("idcard").addEventListener("click",e=>{if(e.target.id==="idcard")e.target.hidden=true});
+
+// ----- Photo picker with pan + zoom crop (stays on this device only) -----
+const fileIn=document.getElementById("photoFile"),crop=document.getElementById("crop"),cimg=document.getElementById("cimg"),zoomIn=document.getElementById("zoom");
+let C={img:null,z:1,x:0,y:0,base:1,D:220};
+document.getElementById("photoBtn").onclick=()=>fileIn.click();
+fileIn.onchange=()=>{
+  const f=fileIn.files&&fileIn.files[0];if(!f)return;
+  const rd=new FileReader();
+  rd.onload=()=>{const im=new Image();im.onload=()=>{
+    C.img=im;C.z=1;C.x=0;C.y=0;zoomIn.value=1;
+    document.getElementById("idcard").hidden=true;crop.hidden=false;
+    C.D=document.getElementById("cview").clientWidth||220;
+    C.base=Math.max(C.D/im.naturalWidth,C.D/im.naturalHeight);
+    cimg.src=im.src;layoutCrop();
+  };im.src=rd.result};
+  rd.readAsDataURL(f);fileIn.value="";
+};
+function layoutCrop(){
+  const w=C.img.naturalWidth*C.base*C.z,h=C.img.naturalHeight*C.base*C.z;
+  C.x=Math.max(-(w-C.D)/2,Math.min((w-C.D)/2,C.x));C.y=Math.max(-(h-C.D)/2,Math.min((h-C.D)/2,C.y));
+  cimg.style.width=w+"px";cimg.style.height=h+"px";
+  cimg.style.left=(C.D/2+C.x-w/2)+"px";cimg.style.top=(C.D/2+C.y-h/2)+"px";
+}
+zoomIn.oninput=()=>{C.z=+zoomIn.value;layoutCrop()};
+(function(){
+  const v=document.getElementById("cview");let drag=null;
+  v.addEventListener("pointerdown",e=>{drag={x:e.clientX,y:e.clientY,ox:C.x,oy:C.y};v.setPointerCapture(e.pointerId)});
+  v.addEventListener("pointermove",e=>{if(!drag)return;C.x=drag.ox+e.clientX-drag.x;C.y=drag.oy+e.clientY-drag.y;layoutCrop()});
+  v.addEventListener("pointerup",()=>drag=null);v.addEventListener("pointercancel",()=>drag=null);
+})();
+document.getElementById("cancelCrop").onclick=()=>{crop.hidden=true};
+document.getElementById("saveCrop").onclick=()=>{
+  const S=256,k=S/C.D,cv=document.createElement("canvas");cv.width=cv.height=S;
+  const w=C.img.naturalWidth*C.base*C.z,h=C.img.naturalHeight*C.base*C.z;
+  cv.getContext("2d").drawImage(C.img,(C.D/2+C.x-w/2)*k,(C.D/2+C.y-h/2)*k,w*k,h*k);
+  PHOTO=cv.toDataURL("image/jpeg",.85);
+  try{localStorage.setItem("ws_photo",PHOTO)}catch(e){}
+  crop.hidden=true;renderPortrait();openID();
+};
+document.getElementById("delPhoto").onclick=()=>{
+  PHOTO=null;try{localStorage.removeItem("ws_photo")}catch(e){}
+  renderPortrait();openID();
+};
+// Each liquid unit has an id; COL maps id -> color. Hidden ids show as "?" until they surface on top.
+let par=0,hintsUsed=0;
+function renderStars(){document.getElementById("stars").textContent=totalStars()}
+let level=1,COL=[],state=[],initial=[],initialHidden=new Set(),hidden=new Set(),history=[],selected=null,moves=0,lastPour=null,justRevealed=null;
+try{level=Math.max(1,parseInt(localStorage.getItem("ws_level"))||1)}catch(e){}
+
+const board=document.getElementById("board"),msg=document.getElementById("msg");
+const colors=s=>s.map(t=>t.map(id=>COL[id]));
+const topOf=t=>t[t.length-1];
+
+// visible same-color run on top (stops at a hidden unit)
+function visRun(t){let n=1;while(n<t.length&&!hidden.has(t[t.length-1-n])&&COL[t[t.length-1-n]]===COL[topOf(t)])n++;return n}
+function canMove(i,j){
+  if(i===j)return false;const a=state[i],b=state[j];
+  if(!a.length||b.length>=CAP)return false;
+  return !b.length||COL[topOf(b)]===COL[topOf(a)];
+}
+function hideChance(n){return n<3?0:Math.min(1,.3+(n-3)*.12)}
+
+function startLevel(n){
+  level=n;try{localStorage.setItem("ws_level",String(n))}catch(e){}
+  const t=generate(n);COL=[];
+  initial=t.map(tube=>tube.map(c=>{COL.push(c);return COL.length-1}));
+  const r=rng(n*31337),p=hideChance(n);initialHidden=new Set();
+  initial.forEach(tube=>tube.forEach((id,k)=>{if(k<tube.length-1&&r()<p)initialHidden.add(id)}));
+  resetBoard();
+  par=(solve(colors(initial),300000)||[]).length||999;
+  document.getElementById("win").hidden=true;document.getElementById("journal").hidden=true;
+  msg.textContent=n===1?"Нажми на колбу, потом на ту, куда перелить"
+    :initialHidden.size&&n===3?"Новое! «?» — неизведанная туманность. Она откроется, когда над ней станет пусто"
+    :initialHidden.size?"Туманностей: "+initialHidden.size+" · цель: "+par+" "+plural(par,"ход","хода","ходов"):"Цель: "+par+" "+plural(par,"ход","хода","ходов")+" на 3 звезды";
+  render();renderStars();
+}
+function resetBoard(){
+  state=initial.map(x=>x.slice());hidden=new Set(initialHidden);
+  history=[];moves=0;selected=null;lastPour=null;justRevealed=null;hintsUsed=0;
+}
+
+function render(){
+  document.getElementById("lvl").textContent=level;
+  document.getElementById("moves").textContent=moves;
+  renderRoute();renderPortrait();
+  board.innerHTML="";
+  state.forEach((tube,i)=>{
+    const el=document.createElement("div");
+    el.className="tube";el.tabIndex=0;el.setAttribute("role","button");
+    el.setAttribute("aria-label","Колба "+(i+1));
+    if(i===selected)el.classList.add("sel");
+    if(tube.length===CAP&&!tube.some(id=>hidden.has(id))&&tube.every(id=>COL[id]===COL[tube[0]]))el.classList.add("done");
+    tube.forEach((id,k)=>{
+      const s=document.createElement("div");s.className="seg";s.style.background=PALETTE[COL[id]];
+      if(hidden.has(id)){s.classList.add("hid");s.textContent="?"}
+      if(id===justRevealed)s.classList.add("reveal");
+      if(lastPour&&lastPour.to===i&&k>=tube.length-lastPour.n)s.classList.add("new");
+      el.appendChild(s);
+    });
+    el.addEventListener("click",()=>tap(i));
+    el.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();tap(i)}});
+    board.appendChild(el);
+  });
+}
+
+function tap(i){
+  if(selected===null){
+    if(!state[i].length)return;
+    selected=i;lastPour=null;render();return;
+  }
+  if(selected===i){selected=null;lastPour=null;render();return;}
+  if(canMove(selected,i)){
+    history.push(state);
+    // pours the whole same-color run, like the solver; hidden units that pour out get revealed
+    const from=selected,n=Math.min(topRun(colors([state[from]])[0]),CAP-state[i].length);
+    state=state.map(x=>x.slice());
+    for(let k=0;k<n;k++){const id=state[from].pop();hidden.delete(id);state[i].push(id)}
+    justRevealed=null;
+    const nt=topOf(state[from]);
+    if(nt!==undefined&&hidden.has(nt)){hidden.delete(nt);justRevealed=nt}
+    moves++;lastPour={to:i,n};selected=null;render();
+    if(isDone(colors(state))){hidden.clear();render();setTimeout(showWin,350)}
+  }else{
+    // switch selection to the tapped tube if it has liquid
+    selected=state[i].length?i:null;lastPour=null;render();
+  }
+}
+
+function plural(n,a,b,c){const m=n%10,h=n%100;if(m===1&&h!==11)return a;if(m>=2&&m<=4&&(h<12||h>14))return b;return c}
+
+document.getElementById("undo").onclick=()=>{
+  // revealed colors stay revealed after undo
+  if(!history.length)return;state=history.pop();moves++;selected=null;lastPour=null;justRevealed=null;render();
+};
+document.getElementById("restart").onclick=()=>{
+  resetBoard();msg.textContent="Начали заново";render();
+};
+// Hints follow one plan while the player follows it, so repeated hints never go in circles
+let plan=null;
+function nextHint(){
+  const c=colors(state),k=JSON.stringify(c);
+  if(!plan||plan.at!==k||plan.i>=plan.moves.length){
+    const sol=solve(c,300000);
+    if(!sol||!sol.length){plan=null;return null}
+    plan={moves:sol,i:0,at:k};
+  }
+  const mv=plan.moves[plan.i];
+  plan.at=JSON.stringify(pour(c,mv[0],mv[1])[0]);plan.i++;
+  return mv;
+}
+document.getElementById("hint").onclick=()=>{
+  if(isDone(colors(state)))return;
+  msg.textContent="Думаю…";
+  setTimeout(()=>{
+    const mv=nextHint();
+    if(!mv){msg.textContent="Отсюда не выбраться. Нажми «Назад» или «Заново»";return}
+    const [i,j]=mv;selected=null;lastPour=null;render();
+    const tubes=board.children;
+    tubes[i].classList.add("hint");tubes[j].classList.add("hint");
+    hintsUsed++;
+    msg.textContent="Перелей из колбы "+(i+1)+" в колбу "+(j+1)+" · −1 ★";
+  },30);
+};
+
+startLevel(level);
+</script>
+
+<script>if("serviceWorker" in navigator&&location.protocol.startsWith("http")){navigator.serviceWorker.register("sw.js").catch(()=>{})}</script>
+</body></html>
