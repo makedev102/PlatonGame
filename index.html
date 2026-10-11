@@ -194,6 +194,12 @@ nav .icon{width:48px;padding-inline:0;font-size:1.25rem}
 .resetbox label{display:flex;gap:8px;align-items:center;font-weight:700}
 .resetbox .idbtns{margin-top:12px}
 button.danger{background:#e04a4a;color:#fff}
+.tube.ghost{border:2px dashed var(--glass);background:transparent;box-shadow:none;flex-direction:column;justify-content:center;align-items:center;gap:2px;color:var(--muted);font-family:var(--display);padding:0}
+.tube.ghost::before,.tube.ghost::after{display:none}
+.tube.ghost .gp{font-size:1.8rem;line-height:1}
+.tube.ghost .gq{font-size:1rem;font-weight:700}
+.tube.ghost small{font:800 .8rem var(--body)}
+.tube.ghost.armed{border-color:var(--accent);color:var(--accent);background:rgba(255,181,71,.08)}
 @media (prefers-reduced-motion:reduce){.tube,.seg.new,.tube.hint,.planet,.ship{transition:none;animation:none}}
 </style>
 </head><body>
@@ -305,29 +311,33 @@ function solve(start,limit=250000){
   return dfs(start)?path.slice():null;
 }
 
+// Most distinguishable colors first; brown/grey/white are left out
+const PICK=["a","b","c","d","e","f","g","h","j"];
+// tubes grow by one every 4 levels; distinct colors grow slower, so later levels repeat colors
 function levelSpec(n){
-  const colors=Math.min(3+Math.floor((n-1)/2),12);
-  const empties=colors>=9?2:2;
-  return {colors,empties};
+  const tubes=Math.min(3+Math.floor((n-1)/4),12);
+  const distinct=Math.min(tubes,3+Math.floor((n-1)/6),PICK.length);
+  return {tubes,distinct,empties:2};
+}
+function unitsFor(tubes,distinct){
+  const u=[];for(let c=0;c<tubes;c++)for(let k=0;k<CAP;k++)u.push(PICK[c%distinct]);return u;
 }
 function generate(n){
-  const {colors,empties}=levelSpec(n);
+  const {tubes:colors,distinct,empties}=levelSpec(n);
   for(let attempt=0;attempt<60;attempt++){
     const r=rng(n*7919+attempt*104729);
-    const units=[];
-    for(let c=0;c<colors;c++)for(let k=0;k<CAP;k++)units.push(KEYS[c]);
+    const units=unitsFor(colors,distinct);
     for(let i=units.length-1;i>0;i--){const j=Math.floor(r()*(i+1));[units[i],units[j]]=[units[j],units[i]]}
     const t=[];
     for(let c=0;c<colors;c++)t.push(units.slice(c*CAP,c*CAP+CAP));
     for(let e=0;e<empties;e++)t.push([]);
     // avoid tubes that start already sorted or with 3 of a kind stacked
-    if(t.some(x=>x.length===CAP&&topRun(x)>=3))continue;
+    if(t.some(x=>x.length===CAP&&topRun(x)>=3)||isDone(t))continue;
     const sol=solve(t,150000);
     if(sol&&sol.length>=colors)return t;
   }
   // fallback: give an extra empty tube
-  const r=rng(n);const units=[];
-  for(let c=0;c<colors;c++)for(let k=0;k<CAP;k++)units.push(KEYS[c]);
+  const r=rng(n);const units=unitsFor(colors,distinct);
   units.sort(()=>r()-.5);
   const t=[];for(let c=0;c<colors;c++)t.push(units.slice(c*CAP,c*CAP+CAP));
   t.push([],[],[]);return t;
@@ -447,7 +457,9 @@ function factFor(n){
 const load=(k,d)=>{try{const v=JSON.parse(localStorage.getItem(k));return v??d}catch(e){return d}};
 const save=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
 const STARS=load("ws_stars",{}), BONUS=load("ws_bonus",{});let ASKED=load("ws_asked",[]);
-const totalStars=()=>Object.values(STARS).reduce((a,b)=>a+b,0)+Object.keys(BONUS).length;
+let SPENT=load("ws_spent",0);
+const totalStars=()=>Math.max(0,Object.values(STARS).reduce((a,b)=>a+b,0)+Object.keys(BONUS).length-SPENT);
+const TUBE_PRICE=2;
 // [question, options, correct index, level whose fact it checks]
 const QUIZ=[
  ["Почему мы всегда видим одну и ту же сторону Луны?",["Луна совсем не вращается","Она поворачивается вокруг себя за то же время, что облетает Землю","Вторая сторона всегда в тени"],1,1],
@@ -668,9 +680,9 @@ document.getElementById("resetAsk").onclick=()=>{document.getElementById("resetB
 document.getElementById("resetNo").onclick=()=>{document.getElementById("resetBox").hidden=true;document.getElementById("resetAsk").hidden=false};
 document.getElementById("resetYes").onclick=()=>{
   const keepPhoto=!document.getElementById("resetPhoto").checked;
-  ["ws_level","ws_done","ws_stars","ws_bonus","ws_asked"].forEach(k=>{try{localStorage.removeItem(k)}catch(e){}});
+  ["ws_level","ws_done","ws_stars","ws_bonus","ws_asked","ws_spent"].forEach(k=>{try{localStorage.removeItem(k)}catch(e){}});
   if(!keepPhoto){PHOTO=null;try{localStorage.removeItem("ws_photo")}catch(e){}}
-  for(const k in STARS)delete STARS[k];for(const k in BONUS)delete BONUS[k];ASKED=[];maxDone=0;
+  for(const k in STARS)delete STARS[k];for(const k in BONUS)delete BONUS[k];ASKED=[];maxDone=0;SPENT=0;
   document.getElementById("idcard").hidden=true;
   startLevel(1);msg.textContent="Прогресс сброшен. Новый полёт начинается!";
 };
@@ -720,7 +732,7 @@ document.getElementById("delPhoto").onclick=()=>{
   renderPortrait();openID();
 };
 // Each liquid unit has an id; COL maps id -> color. Hidden ids show as "?" until they surface on top.
-let par=0,hintsUsed=0;
+let par=0,hintsUsed=0,extraUsed=false,ghostArmed=false;
 function renderStars(){document.getElementById("stars").textContent=totalStars()}
 let level=1,COL=[],state=[],initial=[],initialHidden=new Set(),hidden=new Set(),history=[],selected=null,moves=0,lastPour=null,justRevealed=null;
 try{level=Math.max(1,parseInt(localStorage.getItem("ws_level"))||1)}catch(e){}
@@ -736,7 +748,8 @@ function canMove(i,j){
   if(!a.length||b.length>=CAP)return false;
   return !b.length||COL[topOf(b)]===COL[topOf(a)];
 }
-function hideChance(n){return n<3?0:Math.min(1,.3+(n-3)*.12)}
+// nebulas start after the Moon and grow slowly, never covering everything
+function hideChance(n){return n<6?0:Math.min(.7,.15+(n-6)*.035)}
 
 function startLevel(n){
   level=n;try{localStorage.setItem("ws_level",String(n))}catch(e){}
@@ -746,9 +759,10 @@ function startLevel(n){
   initial.forEach(tube=>tube.forEach((id,k)=>{if(k<tube.length-1&&r()<p)initialHidden.add(id)}));
   resetBoard();
   par=(solve(colors(initial),300000)||[]).length||999;
+  extraUsed=false;ghostArmed=false;
   document.getElementById("win").hidden=true;document.getElementById("journal").hidden=true;
   msg.textContent=n===1?"Нажми на колбу, потом на ту, куда перелить"
-    :initialHidden.size&&n===3?"Новое! «?» — неизведанная туманность. Она откроется, когда над ней станет пусто"
+    :initialHidden.size&&n<=7?"Новое! «?» — неизведанная туманность. Она откроется, когда над ней станет пусто"
     :initialHidden.size?"Туманностей: "+initialHidden.size+" · цель: "+par+" "+plural(par,"ход","хода","ходов"):"Цель: "+par+" "+plural(par,"ход","хода","ходов")+" на 3 звезды";
   render();renderStars();
 }
@@ -779,9 +793,28 @@ function render(){
     el.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();tap(i)}});
     board.appendChild(el);
   });
+  if(!extraUsed&&!isDone(colors(state))){
+    const g=document.createElement("button");
+    g.className="tube ghost"+(ghostArmed?" armed":"");
+    g.setAttribute("aria-label","Добавить пустую колбу за "+TUBE_PRICE+" звезды");
+    g.innerHTML=ghostArmed?`<span class="gq">Да?</span><small>−${TUBE_PRICE}★</small>`:`<span class="gp">+</span><small>${TUBE_PRICE}★</small>`;
+    g.onclick=buyTube;
+    board.appendChild(g);
+  }
 }
 
+function buyTube(){
+  if(totalStars()<TUBE_PRICE){
+    msg.textContent="Нужно "+TUBE_PRICE+" ★ на запасную колбу. Проходи уровни на 3 звезды или отвечай на вопросы";return;
+  }
+  if(!ghostArmed){ghostArmed=true;selected=null;msg.textContent="Запасная колба за "+TUBE_PRICE+" ★. Нажми ещё раз, чтобы взять";render();return}
+  SPENT+=TUBE_PRICE;save("ws_spent",SPENT);
+  extraUsed=true;ghostArmed=false;plan=null;
+  state=[...state,[]];history=history.map(h=>[...h,[]]);initial=[...initial,[]];
+  msg.textContent="Запасная колба на борту!";render();renderStars();
+}
 function tap(i){
+  ghostArmed=false;
   if(selected===null){
     if(!state[i].length)return;
     selected=i;lastPour=null;render();return;
