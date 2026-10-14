@@ -97,7 +97,7 @@ main{flex:1;display:flex;align-items:center;justify-content:center;min-height:0}
 .tube:focus-visible{outline:3px solid var(--accent);outline-offset:4px}
 .seg{height:var(--seg);flex:none;border-radius:2px}
 .seg:first-child{border-radius:0 0 calc(var(--tw)/2 - 4px) calc(var(--tw)/2 - 4px)}
-.seg.new{animation:rise .28s ease-out}
+.seg.new{animation:rise .32s ease-out}
 .seg.hid{background:
     radial-gradient(1px 1px at 25% 30%,#fff 50%,transparent 51%),
     radial-gradient(1px 1px at 72% 68%,#fffc 50%,transparent 51%),
@@ -110,6 +110,15 @@ main{flex:1;display:flex;align-items:center;justify-content:center;min-height:0}
 .seg.reveal{animation:reveal .45s ease-out}
 @keyframes reveal{0%{filter:brightness(2.2) saturate(0)}100%{filter:none}}
 @keyframes rise{from{transform:scaleY(0);transform-origin:bottom}to{transform:scaleY(1)}}
+.stats{align-items:center}
+.sndbtn{width:32px;height:32px;padding:5px;border-radius:10px;background:var(--panel);color:var(--fg);box-shadow:none}
+.sndbtn svg{display:block;width:100%;height:100%}
+.sndbtn.off{color:var(--muted)}
+.tube.flying{position:fixed;margin:0;z-index:4;transform-origin:50% 0;pointer-events:none}
+.stream{position:fixed;width:6px;border-radius:3px;z-index:3;transform-origin:50% 0;pointer-events:none;box-shadow:0 0 6px rgba(255,255,255,.25)}
+.tube.just-done{animation:doneGlow .9s ease-out}
+@keyframes doneGlow{0%{box-shadow:0 0 0 0 rgba(94,230,168,.9);transform:scale(1)}30%{transform:scale(1.08)}100%{box-shadow:0 0 0 18px rgba(94,230,168,0);transform:scale(1)}}
+.confetti{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:6}
 @keyframes pulse{50%{transform:translateY(-10px);box-shadow:0 0 0 4px var(--accent)}}
 
 nav{display:flex;gap:8px;justify-content:center;padding-block:12px 16px}
@@ -216,7 +225,7 @@ button.danger{background:#e04a4a;color:#fff}
 <div class="wrap">
   <header>
     <div class="pilot"><button id="pp" aria-label="Удостоверение космонавта"></button><div class="names"><small id="rank">Кадет</small><h1>Командир <span>Платон</span></h1></div></div>
-    <div class="stats"><span>Уровень <b id="lvl">1</b></span><span>Ходы <b id="moves">0</b></span><span class="star">★ <b id="stars">0</b></span></div>
+    <div class="stats"><span>Уровень <b id="lvl">1</b></span><span>Ходы <b id="moves">0</b></span><span class="star">★ <b id="stars">0</b></span><button id="snd" class="sndbtn"></button></div>
   </header>
   <button id="route" aria-label="Открыть бортовой журнал">
     <div class="route-top"><span id="routeText">Курс: Луна</span><span id="routeLeft"></span></div>
@@ -690,6 +699,7 @@ function showWin(){
       const k=+b.dataset.k,ok=k===q[2];
       box.querySelectorAll(".opts button").forEach(x=>{x.disabled=true;if(+x.dataset.k===q[2])x.classList.add("right")});
       if(!ok)b.classList.add("wrong");
+      ok?SFX.right():SFX.wrong();
       if(!ASKED.includes(qi)){ASKED.push(qi);save("ws_asked",ASKED)}
       let r;
       if(ok&&!BONUS[n]){BONUS[n]=1;save("ws_bonus",BONUS);r="Верно! +1 бонусная звезда"}
@@ -701,6 +711,7 @@ function showWin(){
   }
   renderStars();
   document.getElementById("win").hidden=false;
+  SFX.win();SFX.stars(got);if(rankUp||arrived)SFX.fanfare();confetti();buzz([20,40,20]);
 }
 
 function openJournal(){
@@ -859,7 +870,102 @@ document.getElementById("delPhoto").onclick=()=>{
   PHOTO=null;try{localStorage.removeItem("ws_photo")}catch(e){}
   renderPortrait();openID();
 };
+// ===== Sound: synthesized with Web Audio, no files needed (works offline) =====
+let AC=null,SOUND=true;
+try{SOUND=localStorage.getItem("ws_sound")!=="0"}catch(e){}
+function audio(){
+  if(!SOUND)return null;
+  if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)()}catch(e){return null}}
+  if(AC.state==="suspended")AC.resume();
+  return AC;
+}
+function tone(f,t0,dur,o={}){
+  const a=audio();if(!a)return;
+  const {type="sine",vol=.15,f2=null,attack=.006}=o;
+  const t=a.currentTime+t0,osc=a.createOscillator(),g=a.createGain();
+  osc.type=type;osc.frequency.setValueAtTime(f,t);if(f2)osc.frequency.exponentialRampToValueAtTime(f2,t+dur);
+  g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(vol,t+attack);g.gain.exponentialRampToValueAtTime(.0001,t+dur);
+  osc.connect(g);g.connect(a.destination);osc.start(t);osc.stop(t+dur+.03);
+}
+const SFX={
+  select(){tone(700,0,.07,{vol:.07,f2:900})},
+  bonk(){tone(210,0,.16,{type:"triangle",f2:120,vol:.14})},
+  // bubbly gurgle; pitch rises as the target tube fills, like a real bottle
+  pour(fill,n){const steps=3+n*3;for(let k=0;k<steps;k++){const p=(fill+n*k/steps)/CAP;tone(300+p*520+Math.random()*70,k*.045,.07,{vol:.08,f2:400+p*620})}},
+  ding(){tone(1318,0,1,{vol:.11});tone(1976,0,.7,{vol:.05});tone(2637,0,.35,{vol:.03})},
+  reveal(){[1568,2093,2637].forEach((f,k)=>tone(f,k*.06,.3,{vol:.045}))},
+  win(){[523,659,784,1047].forEach((f,k)=>tone(f,k*.11,.35,{type:"triangle",vol:.13}));tone(1047,.44,1,{type:"triangle",vol:.11});tone(1568,.44,1,{vol:.04})},
+  stars(n){for(let k=0;k<n;k++)tone(988*Math.pow(1.25,k),.75+k*.15,.22,{type:"triangle",vol:.09})},
+  right(){tone(784,0,.15,{type:"triangle",vol:.12});tone(1175,.12,.35,{type:"triangle",vol:.12})},
+  wrong(){tone(392,0,.18,{type:"triangle",vol:.1});tone(311,.15,.35,{type:"triangle",vol:.1})},
+  coin(){tone(988,0,.08,{type:"square",vol:.04});tone(1319,.08,.35,{type:"square",vol:.04})},
+  fanfare(){[392,523,659,784,659,784,1047].forEach((f,k)=>tone(f,1.1+k*.12,k===6?1.1:.2,{type:"triangle",vol:.12}))}
+};
+function buzz(ms){try{navigator.vibrate&&navigator.vibrate(ms)}catch(e){}}
+const SPK_ON='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z" fill="currentColor"/><path d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+const SPK_OFF='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z" fill="currentColor"/><path d="M16.5 9.5l5 5M21.5 9.5l-5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+function renderSnd(){const b=document.getElementById("snd");b.innerHTML=SOUND?SPK_ON:SPK_OFF;b.setAttribute("aria-label",SOUND?"Выключить звук":"Включить звук");b.classList.toggle("off",!SOUND)}
+document.getElementById("snd").onclick=()=>{SOUND=!SOUND;try{localStorage.setItem("ws_sound",SOUND?"1":"0")}catch(e){}renderSnd();if(SOUND)SFX.select()};
+renderSnd();
+
+// ===== Motion =====
+const reduced=()=>{try{return matchMedia("(prefers-reduced-motion: reduce)").matches}catch(e){return false}};
+let busy=false;
+// Lift the source tube, fly it over the target, tilt and pour with a stream; commit() changes the board mid-pour
+function animatePour(from,to,n,color,fillBefore,commit){
+  return new Promise(done=>{
+    const tubes=board.querySelectorAll(".tube:not(.ghost)"),src=tubes[from],dst=tubes[to];
+    if(reduced()||!src||!dst||!src.animate){commit();SFX.pour(fillBefore,n);done();return}
+    const a=src.getBoundingClientRect(),b=dst.getBoundingClientRect();
+    const cl=src.cloneNode(true);cl.classList.remove("sel","hint");cl.classList.add("flying");
+    Object.assign(cl.style,{left:a.left+"px",top:a.top+"px",width:a.width+"px",height:a.height+"px"});
+    document.body.appendChild(cl);src.style.visibility="hidden";
+    const dir=(b.left+b.width/2)>=(a.left+a.width/2)?1:-1;
+    const dx=(b.left+b.width/2-dir*b.width*.2)-(a.left+a.width/2), dy=(b.top-16)-a.top, ang=dir*70;
+    const at=(r)=>`translate(${dx}px,${dy}px) rotate(${r}deg)`;
+    const T1=210,T2=130,TP=360,T3=220;
+    cl.animate([{transform:"none"},{transform:at(ang*.3)}],{duration:T1,easing:"cubic-bezier(.3,.7,.4,1)",fill:"forwards"});
+    setTimeout(()=>{
+      cl.animate([{transform:at(ang*.3)},{transform:at(ang)}],{duration:T2,easing:"ease-in",fill:"forwards"});
+      const segs=[...cl.querySelectorAll(".seg")].slice(-n);
+      segs.forEach(s=>s.animate([{height:getComputedStyle(s).height},{height:"0px"}],{duration:TP,delay:T2*.6,easing:"ease-in",fill:"forwards"}));
+    },T1);
+    setTimeout(()=>{
+      const segH=parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--seg"))||30;
+      const top=b.top-6, surface=b.bottom-3-fillBefore*segH;
+      const st=document.createElement("div");st.className="stream";
+      Object.assign(st.style,{left:(b.left+b.width/2-3)+"px",top:top+"px",height:Math.max(8,surface-top)+"px",background:color});
+      document.body.appendChild(st);
+      st.animate([{transform:"scaleY(0)"},{transform:"scaleY(1)"}],{duration:90,fill:"forwards",easing:"ease-out"});
+      SFX.pour(fillBefore,n);buzz(8);
+      setTimeout(()=>{commit();const s2=board.querySelectorAll(".tube:not(.ghost)")[from];if(s2)s2.style.visibility="hidden"},60);
+      setTimeout(()=>{
+        st.animate([{opacity:1},{opacity:0}],{duration:120,fill:"forwards"}).onfinish=()=>st.remove();
+        cl.animate([{transform:at(ang)},{transform:"none"}],{duration:T3,easing:"ease-in-out",fill:"forwards"}).onfinish=()=>{
+          cl.remove();const s3=board.querySelectorAll(".tube:not(.ghost)")[from];if(s3)s3.style.visibility="";done();
+        };
+      },TP);
+    },T1+T2*.6);
+  });
+}
+function shake(i){const t=board.querySelectorAll(".tube:not(.ghost)")[i];if(t&&t.animate&&!reduced())t.animate([{transform:"translateX(0)"},{transform:"translateX(-5px)"},{transform:"translateX(5px)"},{transform:"translateX(-3px)"},{transform:"translateX(0)"}],{duration:260})}
+function confetti(){
+  if(reduced())return;
+  const c=document.createElement("canvas");c.className="confetti";document.body.appendChild(c);
+  const d=window.devicePixelRatio||1,W=c.width=innerWidth*d,H=c.height=innerHeight*d,x=c.getContext("2d");
+  const cols=PICK.map(k=>PALETTE[k]).concat(["#ffb547","#ffffff"]);
+  const P=Array.from({length:140},()=>({x:W*(.3+Math.random()*.4),y:H*.3,vx:(Math.random()-.5)*W*.022,vy:-(Math.random()*.022+.006)*H,s:(5+Math.random()*6)*d,r:Math.random()*6,vr:(Math.random()-.5)*.35,c:cols[Math.random()*cols.length|0]}));
+  const t0=performance.now();
+  (function frame(t){
+    const age=t-t0;x.clearRect(0,0,W,H);
+    P.forEach(p=>{p.vy+=H*.0007;p.vx*=.985;p.x+=p.vx;p.y+=p.vy;p.r+=p.vr;
+      x.save();x.translate(p.x,p.y);x.rotate(p.r);x.globalAlpha=Math.max(0,1-age/2200);x.fillStyle=p.c;x.fillRect(-p.s/2,-p.s/4,p.s,p.s/2);x.restore()});
+    if(age<2200)requestAnimationFrame(frame);else c.remove();
+  })(t0);
+}
+
 // Each liquid unit has an id; COL maps id -> color. Hidden ids show as "?" until they surface on top.
+let justDone=null;
 let par=0,hintsUsed=0,extraUsed=false,ghostArmed=false;
 function renderStars(){document.getElementById("stars").textContent=totalStars()}
 let level=1,COL=[],state=[],initial=[],initialHidden=new Set(),hidden=new Set(),history=[],selected=null,moves=0,lastPour=null,justRevealed=null;
@@ -909,7 +1015,7 @@ function render(){
     el.className="tube";el.tabIndex=0;el.setAttribute("role","button");
     el.setAttribute("aria-label","Колба "+(i+1));
     if(i===selected)el.classList.add("sel");
-    if(tube.length===CAP&&!tube.some(id=>hidden.has(id))&&tube.every(id=>COL[id]===COL[tube[0]]))el.classList.add("done");
+    if(tube.length===CAP&&!tube.some(id=>hidden.has(id))&&tube.every(id=>COL[id]===COL[tube[0]])){el.classList.add("done");if(i===justDone)el.classList.add("just-done")}
     tube.forEach((id,k)=>{
       const s=document.createElement("div");s.className="seg";s.style.background=PALETTE[COL[id]];
       if(hidden.has(id)){s.classList.add("hid");s.textContent="?"}
@@ -935,32 +1041,45 @@ function buyTube(){
   if(totalStars()<TUBE_PRICE){
     msg.textContent="Нужно "+TUBE_PRICE+" ★ на запасную колбу. Проходи уровни на 3 звезды или отвечай на вопросы";return;
   }
+  if(busy)return;
   if(!ghostArmed){ghostArmed=true;selected=null;msg.textContent="Запасная колба за "+TUBE_PRICE+" ★. Нажми ещё раз, чтобы взять";render();return}
   SPENT+=TUBE_PRICE;save("ws_spent",SPENT);
   extraUsed=true;ghostArmed=false;plan=null;
   state=[...state,[]];history=history.map(h=>[...h,[]]);initial=[...initial,[]];
-  msg.textContent="Запасная колба на борту!";render();renderStars();
+  msg.textContent="Запасная колба на борту!";SFX.coin();render();renderStars();
 }
+function isFullOne(t){return t.length===CAP&&!t.some(id=>hidden.has(id))&&t.every(id=>COL[id]===COL[t[0]])}
 function tap(i){
-  ghostArmed=false;
+  if(busy)return;
+  audio();ghostArmed=false;justDone=null;
   if(selected===null){
     if(!state[i].length)return;
-    selected=i;lastPour=null;render();return;
+    selected=i;lastPour=null;SFX.select();render();return;
   }
   if(selected===i){selected=null;lastPour=null;render();return;}
   if(canMove(selected,i)){
-    history.push(state);
     // pours the whole same-color run, like the solver; hidden units that pour out get revealed
     const from=selected,n=Math.min(topRun(colors([state[from]])[0]),CAP-state[i].length);
-    state=state.map(x=>x.slice());
-    for(let k=0;k<n;k++){const id=state[from].pop();hidden.delete(id);state[i].push(id)}
-    justRevealed=null;
-    const nt=topOf(state[from]);
-    if(nt!==undefined&&hidden.has(nt)){hidden.delete(nt);justRevealed=nt}
-    moves++;lastPour={to:i,n};selected=null;render();
-    if(isDone(colors(state))){hidden.clear();render();setTimeout(showWin,350)}
+    const color=PALETTE[COL[topOf(state[from])]],fillBefore=state[i].length;
+    busy=true;
+    animatePour(from,i,n,color,fillBefore,()=>{
+      history.push(state);
+      state=state.map(x=>x.slice());
+      for(let k=0;k<n;k++){const id=state[from].pop();hidden.delete(id);state[i].push(id)}
+      justRevealed=null;
+      const nt=topOf(state[from]);
+      if(nt!==undefined&&hidden.has(nt)){hidden.delete(nt);justRevealed=nt}
+      if(isFullOne(state[i]))justDone=i;
+      moves++;lastPour={to:i,n};selected=null;render();
+      if(justRevealed!==null)setTimeout(SFX.reveal,150);
+      if(justDone!==null){setTimeout(SFX.ding,250);buzz(25)}
+    }).then(()=>{
+      busy=false;
+      if(isDone(colors(state))){hidden.clear();render();setTimeout(showWin,300)}
+    });
   }else{
-    // switch selection to the tapped tube if it has liquid
+    // can't pour here: shake, then switch selection to the tapped tube if it has liquid
+    SFX.bonk();shake(i);
     selected=state[i].length?i:null;lastPour=null;render();
   }
 }
@@ -969,9 +1088,10 @@ function plural(n,a,b,c){const m=n%10,h=n%100;if(m===1&&h!==11)return a;if(m>=2&
 
 document.getElementById("undo").onclick=()=>{
   // revealed colors stay revealed after undo
-  if(!history.length)return;state=history.pop();moves++;selected=null;lastPour=null;justRevealed=null;render();
+  if(busy||!history.length)return;state=history.pop();moves++;selected=null;lastPour=null;justRevealed=null;render();
 };
 document.getElementById("restart").onclick=()=>{
+  if(busy)return;
   resetBoard();msg.textContent="Начали заново";render();
 };
 // Hints follow one plan while the player follows it, so repeated hints never go in circles
@@ -988,7 +1108,7 @@ function nextHint(){
   return mv;
 }
 document.getElementById("hint").onclick=()=>{
-  if(isDone(colors(state)))return;
+  if(busy||isDone(colors(state)))return;
   msg.textContent="Думаю…";
   setTimeout(()=>{
     const mv=nextHint();
