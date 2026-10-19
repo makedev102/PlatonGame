@@ -217,6 +217,20 @@ button.danger{background:#e04a4a;color:#fff}
 .planet.nebula{filter:blur(.6px)}
 .jch{margin-top:18px;font-size:.75rem;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);font-weight:800}
 .jch:first-child{margin-top:4px}
+.shopbtn{font:800 .92rem var(--body);color:var(--accent);background:var(--panel);border-radius:12px;padding:6px 10px;box-shadow:none;display:inline-flex;align-items:center;gap:3px;white-space:nowrap}
+.stats .shopbtn b{color:var(--accent)}
+button:disabled{opacity:.45}
+#shop .card{max-width:420px}
+.shopnote{margin:0 0 8px;color:var(--muted);font-weight:700;text-align:center;line-height:1.35}
+.shopprev{display:flex;justify-content:center}
+.shoph{margin:12px 0 0;font-size:.75rem;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);font-weight:800}
+.shopitem{display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--line)}
+.shopitem div{min-width:0}
+.shopitem b{display:block;font-family:var(--display);font-weight:600;line-height:1.2}
+.shopitem span{display:block;color:var(--muted);font-size:.78rem;font-weight:700;line-height:1.3}
+.shopitem button{margin-left:auto;padding:8px 10px;white-space:nowrap}
+.swatch{width:28px;height:28px;border-radius:50%;flex:none;box-shadow:inset 0 0 0 4px rgba(0,0,0,.25),0 0 0 2px rgba(255,255,255,.35)}
+.scanmark{width:28px;height:28px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;background:#1a1440;color:#cfd6ff;font:700 16px var(--display)}
 @media (prefers-reduced-motion:reduce){.tube,.seg.new,.tube.hint,.planet,.ship{transition:none;animation:none}}
 </style>
 </head><body>
@@ -225,7 +239,7 @@ button.danger{background:#e04a4a;color:#fff}
 <div class="wrap">
   <header>
     <div class="pilot"><button id="pp" aria-label="Удостоверение космонавта"></button><div class="names"><small id="rank">Кадет</small><h1>Командир <span>Платон</span></h1></div></div>
-    <div class="stats"><span>Уровень <b id="lvl">1</b></span><span>Ходы <b id="moves">0</b></span><span class="star">★ <b id="stars">0</b></span><button id="snd" class="sndbtn"></button></div>
+    <div class="stats"><span>Уровень <b id="lvl">1</b></span><span>Ходы <b id="moves">0</b></span><button id="shopBtn" class="shopbtn" type="button" aria-label="Бортмагазин">★ <b id="stars">0</b></button><button id="snd" class="sndbtn"></button></div>
   </header>
   <button id="route" aria-label="Открыть бортовой журнал">
     <div class="route-top"><span id="routeText">Курс: Луна</span><span id="routeLeft"></span></div>
@@ -247,11 +261,11 @@ button.danger{background:#e04a4a;color:#fff}
 <div id="idcard" class="overlay" hidden>
   <div class="card">
     <div id="idbody"></div>
-    <div class="idbtns"><button id="photoBtn" class="primary">Добавить фото</button><button id="delPhoto" hidden>Убрать</button><button id="idclose">Закрыть</button></div>
+    <div class="idbtns"><button id="photoBtn" class="primary">Добавить фото</button><button id="delPhoto" hidden>Убрать</button><button id="idShop" type="button">Магазин</button><button id="idclose">Закрыть</button></div>
     <button id="resetAsk" class="linkbtn">Сбросить прогресс…</button>
     <div id="resetBox" class="resetbox" hidden>
       <b>Точно начать всё сначала?</b>
-      <p>Уровни, звёзды, звания, нашивки и бортовой журнал обнулятся. Вернуть их будет нельзя.</p>
+      <p>Уровни, звёзды, звания, нашивки, покупки магазина и бортовой журнал обнулятся. Вернуть их будет нельзя.</p>
       <label><input type="checkbox" id="resetPhoto"> Удалить и фото</label>
       <div class="idbtns"><button id="resetNo">Отмена</button><button id="resetYes" class="danger">Да, сбросить</button></div>
     </div>
@@ -272,6 +286,12 @@ button.danger{background:#e04a4a;color:#fff}
   <div class="card">
     <div class="jhead"><h2>Бортовой журнал</h2><button id="jclose">Закрыть</button></div>
     <div id="jbody"></div>
+  </div>
+</div>
+<div id="shop" class="overlay" hidden>
+  <div class="card">
+    <div class="jhead"><h2>Бортмагазин</h2><button id="shopClose" type="button">Закрыть</button></div>
+    <div id="shopBody"></div>
   </div>
 </div>
 
@@ -566,6 +586,32 @@ const STARS=load("ws_stars",{}), BONUS=load("ws_bonus",{});let ASKED=load("ws_as
 let SPENT=load("ws_spent",0);
 const totalStars=()=>Math.max(0,Object.values(STARS).reduce((a,b)=>a+b,0)+Object.keys(BONUS).length-SPENT);
 const TUBE_PRICE=2;
+const SCAN_PRICE=1;
+const RIMS=[
+  {id:"mars",name:"Марс",col:"#ff5a36",price:3},
+  {id:"aurora",name:"Сияние",col:"#3ddc97",price:3},
+  {id:"earth",name:"Земля",col:"#3aa0ff",price:3}
+];
+const STICKERS=[
+  {id:"rocket",name:"Ракета",price:2},
+  {id:"comet",name:"Комета",price:2},
+  {id:"moon",name:"Луна",price:2}
+];
+let OWNED=load("ws_owned",{rims:[],stickers:[]});
+if(!OWNED||!Array.isArray(OWNED.rims)||!Array.isArray(OWNED.stickers))OWNED={rims:[],stickers:[]};
+OWNED.rims=OWNED.rims.filter(id=>RIMS.some(r=>r.id===id));
+OWNED.stickers=OWNED.stickers.filter(id=>STICKERS.some(s=>s.id===id));
+let RIM=load("ws_rim",null);
+if(typeof RIM!=="string"||!OWNED.rims.includes(RIM))RIM=null;
+let WORN=load("ws_worn",null);
+if(!Array.isArray(WORN))WORN=OWNED.stickers.slice();
+else WORN=WORN.filter(id=>OWNED.stickers.includes(id));
+let shopOn=+load("ws_shop_on",0)||0;
+function stickerShape(id,cut){
+  if(id==="rocket")return `<path d="M0-9c3.2 0 5 4 5 8.2L3.2 4.2 0 2.4l-3.2 1.8L-5-.8C-5-5-3.2-9 0-9z" fill="#eef2ff"/><circle cy="-3" r="1.7" fill="#4a73e8"/><path d="M0 3.2l-2.2 5h4.4z" fill="#ffb547"/>`;
+  if(id==="comet")return `<path d="M-1 1L-11 7" stroke="#ffb547" stroke-width="2.2" stroke-linecap="round"/><circle r="3.6" fill="#ffd23f" stroke="#fff6" stroke-width=".6"/>`;
+  return `<circle r="5.5" fill="#e7edf8"/><circle cx="2.4" cy="-1.5" r="4.5" fill="${cut}"/>`;
+}
 // [question, options, correct index, level whose fact it checks]
 const QUIZ=[
  ["Почему мы всегда видим одну и ту же сторону Луны?",["Луна совсем не вращается","Она поворачивается вокруг себя за то же время, что облетает Землю","Вторая сторона всегда в тени"],1,1],
@@ -761,7 +807,8 @@ function pogon(x,flip,ri){
 }
 function portraitSVG(ri,stops,size){
   const id="v"+(++uid);
-  const ring=["#c8cfe0","#c8cfe0","#a9c4ff","#9fe0ff","#c9b3ff","#ffcf4d","#ffe07a","#e2c6ff","#c7a6ff"][ri];
+  const boughtRim=RIMS.find(r=>r.id===RIM);
+  const ring=boughtRim?boughtRim.col:["#c8cfe0","#c8cfe0","#a9c4ff","#9fe0ff","#c9b3ff","#ffcf4d","#ffe07a","#e2c6ff","#c7a6ff"][ri];
   const suit=ri>=5?"#f3efe4":"#eef1f8";
   let s=`<svg viewBox="0 0 200 220" width="${size}" height="${size*1.1}" aria-hidden="true">
   <defs><clipPath id="${id}"><circle cx="100" cy="82" r="50"/></clipPath>
@@ -777,6 +824,11 @@ function portraitSVG(ri,stops,size){
   stops.forEach((st,k)=>{
     const cx=x0+(k%per)*dx, cy=y0+Math.floor(k/per)*dy;
     s+=`<circle cx="${cx}" cy="${cy}" r="${pr}" fill="${st.col}" stroke="#1b2350" stroke-width="2.5"/><circle cx="${cx}" cy="${cy}" r="${pr}" fill="none" stroke="#ffffff88" stroke-width="1"/>`;
+  });
+  const gear=STICKERS.filter(st=>WORN.includes(st.id));
+  gear.forEach((st,i)=>{
+    const x=100+(i-(gear.length-1)/2)*24;
+    s+=`<g transform="translate(${x} 162)"><circle r="10" fill="#1b2350" stroke="#ffffff66" stroke-width="1"/>${stickerShape(st.id,"#1b2350")}</g>`;
   });
   // helmet
   s+=`<circle cx="100" cy="82" r="62" fill="${suit}" stroke="#9aa6c4" stroke-width="2"/>
@@ -794,6 +846,97 @@ function renderPortrait(){
   el.innerHTML=portraitSVG(rankIndex(level),visitedStops(),46)+(PHOTO?"":`<span class="plus">+</span>`);
 }
 
+// ===== Ship shop: one purchase per level. Re-equipping a owned rim is free. The spare tube stays on the board. =====
+function spendStars(n){
+  if(shopOn===level||totalStars()<n)return false;
+  SPENT+=n;save("ws_spent",SPENT);shopOn=level;save("ws_shop_on",shopOn);return true;
+}
+function nearestHidden(){
+  let best=null;
+  state.forEach(tube=>{
+    for(let k=tube.length-1;k>=0;k--){
+      if(!hidden.has(tube[k]))continue;
+      const depth=tube.length-1-k;
+      if(!best||depth<best.depth)best={id:tube[k],depth};
+      break;
+    }
+  });
+  return best;
+}
+function scanReady(){return level>=6&&hidden.size>0&&shopOn!==level&&totalStars()>=SCAN_PRICE&&!busy}
+function shopPriceBtn(act,id,price){
+  if(shopOn===level)return `<button type="button" disabled>Позже</button>`;
+  if(totalStars()<price)return `<button type="button" disabled>${price}★</button>`;
+  return `<button type="button" class="primary" data-act="${act}" data-id="${id}">${price}★</button>`;
+}
+function openShop(){
+  document.getElementById("idcard").hidden=true;
+  const note=shopOn===level
+    ?"Покупка на этом уровне уже сделана. Надевать купленное можно сразу."
+    :"Одна покупка на уровень. Колба на поле — отдельно.";
+  const scanSub=level<6?"Появится с 6-го уровня":hidden.size?"Открывает одну «?» в колбах":"Сейчас все цвета и так открыты";
+  const scanBtn=scanReady()?`<button type="button" class="primary" data-act="scan">${SCAN_PRICE}★</button>`
+    :`<button type="button" disabled>${shopOn===level&&level>=6&&hidden.size?"Позже":SCAN_PRICE+"★"}</button>`;
+  const rims=RIMS.map(r=>{
+    const owned=OWNED.rims.includes(r.id),on=RIM===r.id;
+    const btn=on?`<button type="button" disabled>На шлеме</button>`:owned?`<button type="button" data-act="wear" data-id="${r.id}">Надеть</button>`:shopPriceBtn("rim",r.id,r.price);
+    return `<div class="shopitem"><i class="swatch" style="background:${r.col}"></i><div><b>${r.name}</b><span>ободок шлема</span></div>${btn}</div>`;
+  }).join("");
+  const sticks=STICKERS.map(s=>{
+    const icon=`<span class="scanmark"><svg viewBox="-12 -12 24 24" width="22" height="22" aria-hidden="true">${stickerShape(s.id,"#1a1440")}</svg></span>`;
+    const owned=OWNED.stickers.includes(s.id),on=WORN.includes(s.id);
+    const btn=on?`<button type="button" data-act="unstick" data-id="${s.id}">Снять</button>`:owned?`<button type="button" data-act="stick" data-id="${s.id}">Надеть</button>`:shopPriceBtn("sticker",s.id,s.price);
+    return `<div class="shopitem">${icon}<div><b>${s.name}</b><span>стикер на грудь</span></div>${btn}</div>`;
+  }).join("");
+  const back=RIM?`<button type="button" class="linkbtn" data-act="unrim">Вернуть ободок звания</button>`:"";
+  document.getElementById("shopBody").innerHTML=`<p class="shopnote">${note} Сейчас ★ ${totalStars()}.</p>
+    <div class="shopprev">${portraitSVG(rankIndex(level),visitedStops(),96)}</div>
+    <div class="shoph">Сканер</div>
+    <div class="shopitem"><span class="scanmark">?</span><div><b>Проявить туманность</b><span>${scanSub}</span></div>${scanBtn}</div>
+    <div class="shoph">Ободок</div>${rims}${back}
+    <div class="shoph">Стикеры</div>${sticks}`;
+  document.getElementById("shop").hidden=false;
+}
+function buyRim(id){
+  if(OWNED.rims.includes(id))return;
+  const item=RIMS.find(r=>r.id===id);
+  if(!item||!spendStars(item.price))return;
+  OWNED.rims.push(id);save("ws_owned",OWNED);RIM=id;save("ws_rim",id);
+  SFX.coin();renderStars();renderPortrait();openShop();
+}
+function buySticker(id){
+  if(OWNED.stickers.includes(id))return;
+  const item=STICKERS.find(s=>s.id===id);
+  if(!item||!spendStars(item.price))return;
+  OWNED.stickers.push(id);save("ws_owned",OWNED);
+  if(!WORN.includes(id))WORN.push(id);
+  save("ws_worn",WORN);
+  SFX.coin();renderStars();renderPortrait();openShop();
+}
+function buyScan(){
+  const hit=nearestHidden();
+  if(!scanReady()||!hit||!spendStars(SCAN_PRICE))return;
+  hidden.delete(hit.id);initialHidden.delete(hit.id);justRevealed=hit.id;
+  document.getElementById("shop").hidden=true;
+  selected=null;msg.textContent="Сканер снял одну туманность";
+  SFX.reveal();render();renderStars();
+}
+document.getElementById("shopBtn").onclick=openShop;
+document.getElementById("idShop").onclick=openShop;
+document.getElementById("shopClose").onclick=()=>{document.getElementById("shop").hidden=true};
+document.getElementById("shop").addEventListener("click",e=>{if(e.target.id==="shop")e.target.hidden=true});
+document.getElementById("shopBody").addEventListener("click",e=>{
+  const b=e.target.closest("button");if(!b||b.disabled)return;
+  const id=b.dataset.id;
+  if(b.dataset.act==="scan")buyScan();
+  if(b.dataset.act==="rim")buyRim(id);
+  if(b.dataset.act==="sticker")buySticker(id);
+  if(b.dataset.act==="wear"){RIM=id;save("ws_rim",id);SFX.select();renderPortrait();openShop()}
+  if(b.dataset.act==="unrim"){RIM=null;save("ws_rim",null);SFX.select();renderPortrait();openShop()}
+  if(b.dataset.act==="stick"&&OWNED.stickers.includes(id)&&!WORN.includes(id)){WORN.push(id);save("ws_worn",WORN);SFX.select();renderPortrait();openShop()}
+  if(b.dataset.act==="unstick"){WORN=WORN.filter(x=>x!==id);save("ws_worn",WORN);SFX.select();renderPortrait();openShop()}
+});
+
 // ----- ID card -----
 function openID(){
   const n=level,ri=rankIndex(n),vis=visitedStops();
@@ -809,7 +952,8 @@ function openID(){
         <dt>Уровней</dt><dd>${maxDone}</dd>
       </dl>
     </div>
-    <div class="idplaces"><b>Посещено:</b> ${vis.length?vis.map(s=>`<span class="chip"><i style="background:${s.col}"></i>${s.name}</span>`).join(""):"<span class='muted'>пока только Земля</span>"}</div>`;
+    <div class="idplaces"><b>Посещено:</b> ${vis.length?vis.map(s=>`<span class="chip"><i style="background:${s.col}"></i>${s.name}</span>`).join(""):"<span class='muted'>пока только Земля</span>"}</div>
+    <div class="idplaces"><b>Снаряжение:</b> ободок «${RIM?(RIMS.find(r=>r.id===RIM)||{name:"цвет звания"}).name:"цвет звания"}», стикеры: ${WORN.length?WORN.map(id=>STICKERS.find(s=>s.id===id).name).join(", "):"<span class='muted'>пока нет</span>"}</div>`;
   document.getElementById("photoBtn").textContent=PHOTO?"Сменить фото":"Добавить фото";
   document.getElementById("delPhoto").hidden=!PHOTO;
   document.getElementById("idcard").hidden=false;
@@ -819,9 +963,10 @@ document.getElementById("resetAsk").onclick=()=>{document.getElementById("resetB
 document.getElementById("resetNo").onclick=()=>{document.getElementById("resetBox").hidden=true;document.getElementById("resetAsk").hidden=false};
 document.getElementById("resetYes").onclick=()=>{
   const keepPhoto=!document.getElementById("resetPhoto").checked;
-  ["ws_level","ws_done","ws_stars","ws_bonus","ws_asked","ws_spent"].forEach(k=>{try{localStorage.removeItem(k)}catch(e){}});
+  ["ws_level","ws_done","ws_stars","ws_bonus","ws_asked","ws_spent","ws_owned","ws_rim","ws_worn","ws_shop_on"].forEach(k=>{try{localStorage.removeItem(k)}catch(e){}});
   if(!keepPhoto){PHOTO=null;try{localStorage.removeItem("ws_photo")}catch(e){}}
   for(const k in STARS)delete STARS[k];for(const k in BONUS)delete BONUS[k];ASKED=[];maxDone=0;SPENT=0;
+  OWNED={rims:[],stickers:[]};RIM=null;WORN=[];shopOn=0;
   document.getElementById("idcard").hidden=true;
   startLevel(1);msg.textContent="Прогресс сброшен. Новый полёт начинается!";
 };
