@@ -231,6 +231,10 @@ button:disabled{opacity:.45}
 .shopitem button{margin-left:auto;padding:8px 10px;white-space:nowrap}
 .swatch{width:28px;height:28px;border-radius:50%;flex:none;box-shadow:inset 0 0 0 4px rgba(0,0,0,.25),0 0 0 2px rgba(255,255,255,.35)}
 .scanmark{width:28px;height:28px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;background:#1a1440;color:#cfd6ff;font:700 16px var(--display)}
+.mission{display:flex;align-items:center;gap:8px;margin-top:8px;padding:8px 10px;border-radius:12px;background:rgba(27,35,80,.7);border:1px solid var(--line);font-weight:800;line-height:1.3}
+.mission i{width:14px;height:14px;border-radius:4px;flex:none;box-shadow:0 0 0 2px rgba(255,255,255,.25)}
+.mission.ok{border-color:rgba(94,230,168,.5);color:var(--win)}
+.mission.miss{border-color:rgba(255,181,71,.45)}
 @media (prefers-reduced-motion:reduce){.tube,.seg.new,.tube.hint,.planet,.ship{transition:none;animation:none}}
 </style>
 </head><body>
@@ -239,13 +243,14 @@ button:disabled{opacity:.45}
 <div class="wrap">
   <header>
     <div class="pilot"><button id="pp" aria-label="Удостоверение космонавта"></button><div class="names"><small id="rank">Кадет</small><h1>Командир <span>Платон</span></h1></div></div>
-    <div class="stats"><span>Уровень <b id="lvl">1</b></span><span>Ходы <b id="moves">0</b></span><button id="shopBtn" class="shopbtn" type="button" aria-label="Бортмагазин">★ <b id="stars">0</b></button><button id="snd" class="sndbtn"></button></div>
+    <div class="stats"><span>Уровень <b id="lvl">1</b></span><span>Ходы <b id="moves">0</b></span><button id="shopBtn" class="shopbtn" type="button" aria-label="Бортмагазин">Лавка ★ <b id="stars">0</b></button><button id="snd" class="sndbtn"></button></div>
   </header>
   <button id="route" aria-label="Открыть бортовой журнал">
     <div class="route-top"><span id="routeText">Курс: Луна</span><span id="routeLeft"></span></div>
     <div class="track" id="track"></div>
   </button>
   <div class="msg" id="msg">Нажми на колбу, потом на ту, куда перелить</div>
+  <div id="mission" class="mission" hidden></div>
 </div>
 <main><div id="board" role="group" aria-label="Колбы"></div></main>
 <nav>
@@ -584,7 +589,9 @@ const load=(k,d)=>{try{const v=JSON.parse(localStorage.getItem(k));return v??d}c
 const save=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
 const STARS=load("ws_stars",{}), BONUS=load("ws_bonus",{});let ASKED=load("ws_asked",[]);
 let SPENT=load("ws_spent",0);
-const totalStars=()=>Math.max(0,Object.values(STARS).reduce((a,b)=>a+b,0)+Object.keys(BONUS).length-SPENT);
+let MISSION=load("ws_mission",{});
+if(!MISSION||typeof MISSION!=="object"||Array.isArray(MISSION))MISSION={};
+const totalStars=()=>Math.max(0,Object.values(STARS).reduce((a,b)=>a+b,0)+Object.keys(BONUS).length+Object.keys(MISSION).length-SPENT);
 const TUBE_PRICE=2;
 const SCAN_PRICE=1;
 const RIMS=[
@@ -707,7 +714,7 @@ function planetHTML(s){
   return `<div class="planet ${s.ring?"ring":""}" style="background:${s.grad}"></div>`;
 }
 
-function showWin(){
+function showWin(missionSt){
   const n=level, f=factFor(n), card=document.getElementById("winCard");
   const arrived = n%5===0 && legOf(n)<STOPS.length;
   const rankUp = rankFor(n+1)!==rankFor(n);
@@ -725,6 +732,14 @@ function showWin(){
   if(got>(STARS[n]||0)){STARS[n]=got;save("ws_stars",STARS)}
   h+=`<div class="starrow" aria-label="Звёзд: ${got} из 3">${[0,1,2].map(k=>STAR_SVG(k<got?"on":"off")).join("")}</div>`;
   h+=`<p class="sub">Уровень ${n} за ${moves} ${plural(moves,"ход","хода","ходов")} · цель: ${par}${hintsUsed?` · подсказок: ${hintsUsed}`:""}</p>`;
+  if(mission){
+    const ok=missionSt==="ok";
+    let line;
+    if(ok&&!MISSION[n]){MISSION[n]=1;save("ws_mission",MISSION);line="Задание выполнено · +1★"}
+    else if(ok)line="Задание выполнено · звезда уже у тебя";
+    else line="Задание мимо. Уровень всё равно засчитан";
+    h+=`<p class="sub">${line}</p>`;
+  }
   if(n===CHAPTERS[1].first*5)h+=`<div class="promo"><b>Открыта глава 2: «К звёздам»!</b><span>Солнечная система пройдена. Впереди 10 новых остановок: звёзды, туманности и галактики</span></div>`;
   if(n===STOPS.length*5)h+=`<div class="promo"><b>Командир Платон пролетел от Земли до далёких галактик!</b><span>Дальше — свободный полёт: бесконечные уровни и новые факты о космосе</span></div>`;
   if(rankUp)h+=`<div class="promo">${portraitSVG(rankIndex(n+1),visitedStops(),110)}<b>Платон повышен до звания «${rankFor(n+1)}»!</b><span>Новая форма уже на скафандре</span></div>`;
@@ -916,7 +931,7 @@ function buySticker(id){
 function buyScan(){
   const hit=nearestHidden();
   if(!scanReady()||!hit||!spendStars(SCAN_PRICE))return;
-  hidden.delete(hit.id);initialHidden.delete(hit.id);justRevealed=hit.id;
+  hidden.delete(hit.id);initialHidden.delete(hit.id);justRevealed=hit.id;lockFirst();
   document.getElementById("shop").hidden=true;
   selected=null;msg.textContent="Сканер снял одну туманность";
   SFX.reveal();render();renderStars();
@@ -963,9 +978,9 @@ document.getElementById("resetAsk").onclick=()=>{document.getElementById("resetB
 document.getElementById("resetNo").onclick=()=>{document.getElementById("resetBox").hidden=true;document.getElementById("resetAsk").hidden=false};
 document.getElementById("resetYes").onclick=()=>{
   const keepPhoto=!document.getElementById("resetPhoto").checked;
-  ["ws_level","ws_done","ws_stars","ws_bonus","ws_asked","ws_spent","ws_owned","ws_rim","ws_worn","ws_shop_on"].forEach(k=>{try{localStorage.removeItem(k)}catch(e){}});
+  ["ws_level","ws_done","ws_stars","ws_bonus","ws_asked","ws_spent","ws_owned","ws_rim","ws_worn","ws_shop_on","ws_mission"].forEach(k=>{try{localStorage.removeItem(k)}catch(e){}});
   if(!keepPhoto){PHOTO=null;try{localStorage.removeItem("ws_photo")}catch(e){}}
-  for(const k in STARS)delete STARS[k];for(const k in BONUS)delete BONUS[k];ASKED=[];maxDone=0;SPENT=0;
+  for(const k in STARS)delete STARS[k];for(const k in BONUS)delete BONUS[k];for(const k in MISSION)delete MISSION[k];ASKED=[];maxDone=0;SPENT=0;
   OWNED={rims:[],stickers:[]};RIM=null;WORN=[];shopOn=0;
   document.getElementById("idcard").hidden=true;
   startLevel(1);msg.textContent="Прогресс сброшен. Новый полёт начинается!";
@@ -1112,6 +1127,46 @@ function confetti(){
 // Each liquid unit has an id; COL maps id -> color. Hidden ids show as "?" until they surface on top.
 let justDone=null;
 let par=0,hintsUsed=0,extraUsed=false,ghostArmed=false;
+let mission=null,firstLock=null,firstStack=[];
+const COLOR_NAME={a:"красный",b:"синий",c:"жёлтый",d:"зелёный",e:"фиолетовый",f:"оранжевый",g:"бирюзовый",h:"розовый",j:"салатовый"};
+function pickMission(n){
+  if(n<2)return null;
+  const present=[...new Set(COL)];
+  if(!present.length)return null;
+  const r=rng(n*9001);
+  const color=present[Math.floor(r()*present.length)];
+  const kinds=n<6?["first","dock"]:["first","dock","scan"];
+  let kind=kinds[(n-2)%kinds.length];
+  if(kind==="scan"&&!initialHidden.size)kind="first";
+  return {kind,color};
+}
+function lockFirst(){
+  if(!mission||mission.kind!=="first"||firstLock)return;
+  for(const t of state) if(isFullOne(t)){firstLock=COL[t[0]];return}
+}
+function missionStatus(){
+  if(!mission)return null;
+  if(mission.kind==="first")return firstLock?firstLock===mission.color?"ok":"miss":"open";
+  if(mission.kind==="dock"){const t=state[0];return t&&isFullOne(t)&&COL[t[0]]===mission.color?"ok":"open"}
+  return hidden.size?"open":"ok";
+}
+function renderMission(){
+  const el=document.getElementById("mission");
+  const st=missionStatus();
+  if(!mission||!st){el.hidden=true;el.textContent="";return}
+  const owned=!!MISSION[level];
+  const name=COLOR_NAME[mission.color]||"этот цвет";
+  const swatch=mission.kind==="scan"?`<i class="scanmark" style="width:14px;height:14px;font-size:11px">?</i>`:`<i style="background:${PALETTE[mission.color]}"></i>`;
+  let text;
+  if(st==="ok")text=owned?"Задание готово · звезда уже у тебя":"Задание готово · +1★ в конце уровня";
+  else if(st==="miss")text="Другой цвет собрался раньше. Уровень всё равно засчитан";
+  else if(mission.kind==="first")text=`Задание: первой собери ${name} · +1★`;
+  else if(mission.kind==="dock")text=`Задание: ${name} — в левую колбу · +1★`;
+  else text=`Задание: открой все туманности · осталось ${hidden.size} · +1★`;
+  el.hidden=false;
+  el.className="mission"+(st==="open"?"":" "+st);
+  el.innerHTML=swatch+text;
+}
 function renderStars(){document.getElementById("stars").textContent=totalStars()}
 let level=1,COL=[],state=[],initial=[],initialHidden=new Set(),hidden=new Set(),history=[],selected=null,moves=0,lastPour=null,justRevealed=null;
 try{level=Math.max(1,parseInt(localStorage.getItem("ws_level"))||1)}catch(e){}
@@ -1137,6 +1192,7 @@ function startLevel(n){
   const r=rng(n*31337),p=hideChance(n);initialHidden=new Set();
   initial.forEach(tube=>tube.forEach((id,k)=>{if(k<tube.length-1&&r()<p)initialHidden.add(id)}));
   resetBoard();
+  mission=pickMission(n);
   par=(solve(colors(initial),300000)||[]).length||999;
   extraUsed=false;ghostArmed=false;
   document.getElementById("win").hidden=true;document.getElementById("journal").hidden=true;
@@ -1148,12 +1204,13 @@ function startLevel(n){
 function resetBoard(){
   state=initial.map(x=>x.slice());hidden=new Set(initialHidden);
   history=[];moves=0;selected=null;lastPour=null;justRevealed=null;hintsUsed=0;
+  firstLock=null;firstStack=[];
 }
 
 function render(){
   document.getElementById("lvl").textContent=level;
   document.getElementById("moves").textContent=moves;
-  renderRoute();renderPortrait();
+  renderRoute();renderPortrait();renderMission();
   board.innerHTML="";
   state.forEach((tube,i)=>{
     const el=document.createElement("div");
@@ -1209,18 +1266,20 @@ function tap(i){
     busy=true;
     animatePour(from,i,n,color,fillBefore,()=>{
       history.push(state);
+      firstStack.push(firstLock);
       state=state.map(x=>x.slice());
       for(let k=0;k<n;k++){const id=state[from].pop();hidden.delete(id);state[i].push(id)}
       justRevealed=null;
       const nt=topOf(state[from]);
       if(nt!==undefined&&hidden.has(nt)){hidden.delete(nt);justRevealed=nt}
       if(isFullOne(state[i]))justDone=i;
+      lockFirst();
       moves++;lastPour={to:i,n};selected=null;render();
       if(justRevealed!==null)setTimeout(SFX.reveal,150);
       if(justDone!==null){setTimeout(SFX.ding,250);buzz(25)}
     }).then(()=>{
       busy=false;
-      if(isDone(colors(state))){hidden.clear();render();setTimeout(showWin,300)}
+      if(isDone(colors(state))){const st=missionStatus();render();setTimeout(()=>showWin(st),300)}
     });
   }else{
     // can't pour here: shake, then switch selection to the tapped tube if it has liquid
@@ -1233,7 +1292,7 @@ function plural(n,a,b,c){const m=n%10,h=n%100;if(m===1&&h!==11)return a;if(m>=2&
 
 document.getElementById("undo").onclick=()=>{
   // revealed colors stay revealed after undo
-  if(busy||!history.length)return;state=history.pop();moves++;selected=null;lastPour=null;justRevealed=null;render();
+  if(busy||!history.length)return;state=history.pop();if(firstStack.length)firstLock=firstStack.pop();moves++;selected=null;lastPour=null;justRevealed=null;render();
 };
 document.getElementById("restart").onclick=()=>{
   if(busy)return;
